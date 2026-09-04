@@ -1,42 +1,126 @@
 <!doctype html>
 <html lang="en" dir="ltr">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0b1f33">
-    <meta name="description" content="NAYL — a GCC-first AI buyer that turns demand into comparable marketplace and external-source results.">
-    <title>NAYL — GCC AI Buyer</title>
-    <link rel="icon" href="/nayl-mark.svg" type="image/svg+xml">
-    <link rel="manifest" href="/manifest.webmanifest">
-    <link rel="stylesheet" href="/styles.css">
-  </head>
-  <body>
-    <div class="ambient ambient-one"></div>
-    <div class="ambient ambient-two"></div>
-
-    <header class="app-header">
-      <a class="brand" href="#consumer" aria-label="NAYL home">
-        <img src="/nayl-mark.svg" alt="" width="42" height="42">
-        <span class="brand-copy">
-          <strong>NAYL</strong>
-          <small id="brand-caption">GCC AI Buyer</small>
-        </span>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#070809">
+  <meta name="description" content="NAYL is a GCC-first AI buyer that turns natural-language demand into sourced options and real quote requests.">
+  <title>NAYL — Buy the outcome</title>
+  <link rel="icon" href="/nayl-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-portal="consumer">
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a class="brand" href="/" aria-label="NAYL home">
+        <img src="/nayl-mark.svg" alt="">
+        <span class="brand__word">NAYL</span>
       </a>
-      <nav id="portal-nav" class="portal-nav" aria-label="Primary navigation"></nav>
-      <div id="header-actions" class="header-actions"></div>
-    </header>
+      <div class="topbar__actions">
+        <span id="live-status" class="status-pill"><span class="status-pill__dot"></span><span>Live buyer network</span></span>
+        <button id="language-button" class="ghost-button button--small" type="button">العربية</button>
+      </div>
+    </div>
+  </header>
 
-    <main id="app" class="app-shell" aria-live="polite">
-      <section class="loading-screen">
-        <div class="loading-mark"><img src="/nayl-mark.svg" alt="" width="64" height="64"></div>
-        <p>Loading NAYL…</p>
-      </section>
-    </main>
+  <main class="page-shell">
+    <section class="hero">
+      <div class="hero__copy">
+        <span class="eyebrow" id="hero-eyebrow">GCC AI buyer · live sources</span>
+        <h1 id="hero-title">Buy the <span>outcome.</span><br>Skip the hunt.</h1>
+        <p id="hero-copy">Describe what you need. NAYL interprets the request, checks configured live sources, and opens one quote request that businesses can answer.</p>
 
-    <footer id="app-footer" class="app-footer"></footer>
-    <div id="modal-root"></div>
-    <div id="toast-root" class="toast-root" aria-live="assertive"></div>
+        <form id="search-form" class="search-panel">
+          <div class="search-panel__input">
+            <textarea id="query-input" maxlength="800" required placeholder="I need a reliable AC technician in Dubai today under AED 350"></textarea>
+            <button id="search-button" class="primary-button search-panel__submit" type="submit" aria-label="Search"></button>
+          </div>
+          <div class="search-panel__controls">
+            <select id="market-select" class="compact-select" aria-label="Market"></select>
+            <select id="city-select" class="compact-select" aria-label="City"></select>
+            <label class="toggle" title="Uses OpenAI web search and higher reasoning when configured">
+              <span id="deep-label">Deep search</span>
+              <input id="deep-toggle" type="checkbox">
+              <span class="toggle__track"><span class="toggle__thumb"></span></span>
+            </label>
+          </div>
+        </form>
+      </div>
 
-    <script type="module" src="/web-app.js"></script>
-  </body>
+      <aside class="pulse-card" aria-label="Buyer intelligence summary">
+        <div class="pulse-card__top">
+          <span class="pulse-card__label" id="pulse-label">Buyer signal</span>
+          <span class="chip" id="pulse-mode">Ready</span>
+        </div>
+        <div id="pulse-ring" class="pulse-ring" style="--value:72">
+          <div class="pulse-ring__content">
+            <strong id="pulse-value" class="pulse-ring__value">72</strong>
+            <span id="pulse-unit" class="pulse-ring__unit">Signal clarity</span>
+          </div>
+        </div>
+        <div class="pulse-card__stats">
+          <div class="pulse-stat"><strong id="pulse-results">0</strong><span id="pulse-results-label">Options</span></div>
+          <div class="pulse-stat"><strong id="pulse-live">0</strong><span id="pulse-live-label">Live sources</span></div>
+          <div class="pulse-stat"><strong id="pulse-requests">0</strong><span id="pulse-requests-label">Requests</span></div>
+        </div>
+      </aside>
+    </section>
+
+    <section id="results-section" class="section hidden">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow" id="results-eyebrow">Sourced options</span>
+          <h2 id="results-title">Best paths found</h2>
+        </div>
+        <p id="search-summary"></p>
+      </div>
+      <div id="intent-strip" class="intent-strip"></div>
+      <div id="connector-rail" class="connector-rail"></div>
+      <div id="deep-source-list" class="deep-source-list hidden" aria-label="Research sources"></div>
+      <div id="result-grid" class="result-grid"></div>
+    </section>
+
+    <section id="requests" class="section">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow" id="requests-eyebrow">Live marketplace loop</span>
+          <h2 id="requests-title">Your quote requests</h2>
+        </div>
+        <button id="refresh-requests" class="ghost-button button--small" type="button">Refresh</button>
+      </div>
+      <div id="request-list" class="request-list"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>NAYL · source-aware buying across the GCC</span>
+    <span id="footer-disclosure">External results open their original source. Quote requests are handled by registered NAYL businesses.</span>
+  </footer>
+
+  <dialog id="quote-dialog" class="dialog">
+    <form id="quote-request-form" method="dialog">
+      <div class="dialog__header">
+        <div><span class="eyebrow" id="dialog-eyebrow">Open a real request</span><h2 id="dialog-title">Get competing quotes</h2></div>
+        <button class="icon-button" type="button" data-close-dialog aria-label="Close"></button>
+      </div>
+      <div class="dialog__body">
+        <div id="selected-result-summary" class="request-card" style="margin-bottom:12px"></div>
+        <p id="quote-routing-disclosure" class="routing-disclosure"></p>
+        <div class="form-grid">
+          <div class="form-field"><label for="contact-name" id="contact-name-label">Your name</label><input id="contact-name" class="input" required maxlength="120"></div>
+          <div class="form-field"><label for="contact-email" id="contact-email-label">Email</label><input id="contact-email" class="input" type="email" required maxlength="180"></div>
+          <div class="form-field form-field--full"><label for="contact-phone" id="contact-phone-label">Phone (optional)</label><input id="contact-phone" class="input" maxlength="60"></div>
+          <div class="form-field form-field--full"><label for="request-details" id="request-details-label">Extra details</label><textarea id="request-details" class="textarea" maxlength="1500" placeholder="Scope, preferred timing, property size, or anything a provider should know"></textarea></div>
+        </div>
+      </div>
+      <div class="dialog__footer">
+        <button class="ghost-button" type="button" data-close-dialog id="dialog-cancel">Cancel</button>
+        <button id="submit-request" class="primary-button" type="submit">Create request</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast-root" class="toast-root" aria-live="assertive"></div>
+  <script type="module" src="/consumer.js"></script>
+</body>
 </html>

@@ -1,4 +1,4 @@
-import { clamp, normalizeText } from './text.js';
+import { clamp, normalizeText } from './lib-text.js';
 
 const MARKET_ALIASES = {
   AE: ['uae', 'united arab emirates', 'emirates', 'الإمارات', 'الامارات'],
@@ -72,10 +72,6 @@ function detectUrgency(normalized) {
   return { value: 'flexible', explicit: false };
 }
 
-function containsTerm(normalized, term) {
-  return ` ${normalized} `.includes(` ${term} `);
-}
-
 function detectCategory(normalized, categories) {
   let best = null;
   for (const category of categories) {
@@ -83,7 +79,7 @@ function detectCategory(normalized, categories) {
     for (const keyword of category.keywords || []) {
       const normalizedKeyword = normalizeText(keyword);
       if (!normalizedKeyword) continue;
-      if (containsTerm(normalized, normalizedKeyword)) score += normalizedKeyword.includes(' ') ? 3 : 1;
+      if (normalized.includes(normalizedKeyword)) score += normalizedKeyword.includes(' ') ? 3 : 1;
     }
     if (!best || score > best.score) best = { category, score };
   }
@@ -162,5 +158,42 @@ export function extractIntent(query, context, catalogue) {
       city: !explicitLocation?.explicitCity,
       locale: context.locale || null
     }
+  };
+}
+
+export function mergeAiIntent(base, ai, catalogue) {
+  if (!ai || typeof ai !== 'object') return base;
+  const validCategory = catalogue.categories.some((item) => item.id === ai.category) ? ai.category : base.category;
+  const market = catalogue.markets.find((item) => item.code === String(ai.market || '').toUpperCase())
+    || catalogue.markets.find((item) => item.code === base.market)
+    || catalogue.markets[0];
+  const requestedCity = String(ai.city || '').trim();
+  const city = market.cities.find((item) => normalizeText(item.name) === normalizeText(requestedCity))
+    || market.cities.find((item) => normalizeText(item.nameAr) === normalizeText(requestedCity))
+    || market.cities.find((item) => normalizeText(item.name) === normalizeText(base.city))
+    || market.cities[0];
+  const category = catalogue.categories.find((item) => item.id === validCategory);
+  const urgency = ['now', 'today', 'tomorrow', 'weekend', 'this-week', 'flexible'].includes(ai.urgency)
+    ? ai.urgency
+    : base.urgency;
+  const budget = Number.isFinite(Number(ai.budget)) && Number(ai.budget) > 0 ? Number(ai.budget) : base.budget;
+  const language = ai.language === 'ar' ? 'ar' : ai.language === 'en' ? 'en' : base.language;
+
+  return {
+    ...base,
+    language,
+    category: validCategory,
+    categoryLabel: language === 'ar' ? category?.labelAr : category?.label,
+    market: market.code,
+    marketName: language === 'ar' ? market.nameAr : market.name,
+    city: city?.name || base.city,
+    cityLabel: language === 'ar' ? city?.nameAr || city?.name : city?.name,
+    budget,
+    currency: market.currency,
+    urgency,
+    confidence: Math.max(base.confidence, Math.min(99, Math.max(1, Number(ai.confidence) || 85))),
+    goal: String(ai.goal || '').trim().slice(0, 240) || base.query,
+    constraints: Array.isArray(ai.constraints) ? ai.constraints.map(String).slice(0, 8) : [],
+    aiEnhanced: true
   };
 }

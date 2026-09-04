@@ -1,84 +1,60 @@
-import { normalizeText, tokenize } from './text.js';
+import { normalizeText } from './lib-text.js';
 
-function localized(provider, field, language) {
-  if (language === 'ar' && provider[`${field}Ar`]) return provider[`${field}Ar`];
-  return provider[field];
-}
-
-function providerMatch(provider, intent, queryTokens) {
-  let score = 0;
-  if (provider.market === intent.market) score += 20;
-  else return -100;
-
-  if (intent.category === 'general') score += 4;
-  else if (provider.categories.includes(intent.category)) score += 18;
-  else return -100;
-
-  if (intent.city && provider.serviceAreas.some((area) => normalizeText(area) === normalizeText(intent.city))) score += 15;
-
-  const haystack = normalizeText([
-    provider.title,
-    provider.titleAr,
-    provider.description,
-    provider.descriptionAr,
-    ...(provider.keywords || []),
-    ...(provider.categories || [])
-  ].join(' '));
-  const overlap = queryTokens.filter((token) => haystack.includes(token)).length;
-  score += Math.min(12, overlap * 2);
-
-  if (intent.budget && provider.currency === intent.currency) {
-    score += provider.price <= intent.budget ? 10 : -Math.min(10, Math.ceil((provider.price - intent.budget) / Math.max(1, intent.budget) * 10));
-  }
-
-  return score;
+function matches(business, intent) {
+  if (business.status !== 'verified' || !business.acceptingLeads) return false;
+  if (business.market !== intent.market) return false;
+  if (intent.category !== 'general' && !business.categories.includes(intent.category)) return false;
+  if (intent.city && !business.serviceAreas.some((city) => normalizeText(city) === normalizeText(intent.city))) return false;
+  return true;
 }
 
 export function createMarketplaceConnector({ store }) {
   return {
-    id: 'marketplace',
+    id: 'nayl-marketplace',
     name: 'NAYL Marketplace',
     sourceType: 'marketplace',
-    mode: 'live-mvp',
+    mode: 'live',
     configured: true,
-    description: 'First-party seeded providers and marketplace actions.',
+    description: 'Verified businesses registered directly with NAYL.',
 
     async search({ intent }) {
       const data = await store.snapshot();
-      const queryTokens = tokenize(intent.query);
-      const matches = data.providers
-        .map((provider) => ({ provider, match: providerMatch(provider, intent, queryTokens) }))
-        .filter(({ match }) => match > 0)
-        .sort((a, b) => b.match - a.match || b.provider.rating - a.provider.rating)
-        .slice(0, 8);
-
-      return matches.map(({ provider }) => ({
-        id: provider.id,
-        source: 'NAYL Marketplace',
-        sourceType: 'marketplace',
-        sourceMode: 'live-mvp',
-        title: localized(provider, 'title', intent.language),
-        subtitle: localized(provider, 'description', intent.language),
-        price: provider.price,
-        currency: provider.currency,
-        priceLabel: intent.language === 'ar'
-          ? `ابتداءً من ${provider.price} ${provider.currency}`
-          : `From ${provider.currency} ${provider.price}`,
-        rating: provider.rating,
-        reviews: provider.reviews,
-        availability: localized(provider, 'availability', intent.language),
-        score: 0,
-        action: intent.language === 'ar' ? 'اطلب عرض سعر' : 'Request quote',
-        actionType: 'marketplace-request',
-        url: null,
-        attribution: intent.language === 'ar' ? 'مزود ضمن سوق NAYL التجريبي' : 'Provider in the NAYL MVP marketplace',
-        meta: {
-          businessId: provider.businessId,
-          categories: provider.categories,
-          serviceAreas: provider.serviceAreas,
-          providerId: provider.id
-        }
-      }));
+      const businesses = data.businesses.filter((business) => matches(business, intent));
+      return {
+        results: businesses.slice(0, 12).map((business) => ({
+          id: `business-${business.id}`,
+          source: 'NAYL Marketplace',
+          sourceType: 'marketplace',
+          sourceMode: 'live',
+          title: intent.language === 'ar' && business.nameAr ? business.nameAr : business.name,
+          subtitle: business.description,
+          price: business.priceFrom,
+          currency: business.currency,
+          priceLabel: business.priceFrom
+            ? (intent.language === 'ar' ? `ابتداءً من ${business.currency} ${business.priceFrom}` : `From ${business.currency} ${business.priceFrom}`)
+            : null,
+          rating: Number.isFinite(business.rating) ? business.rating : null,
+          reviews: Number.isFinite(business.reviewCount) ? business.reviewCount : null,
+          availability: business.responseTimeMinutes
+            ? (intent.language === 'ar' ? `يرد عادة خلال ${business.responseTimeMinutes} دقيقة` : `Usually replies in ${business.responseTimeMinutes} min`)
+            : (intent.language === 'ar' ? 'اطلب التوفر' : 'Request availability'),
+          score: 0,
+          action: intent.language === 'ar' ? 'اطلب عرض سعر' : 'Request quote',
+          actionType: 'request-quote',
+          url: business.website || null,
+          attribution: 'NAYL Marketplace',
+          requestable: true,
+          meta: {
+            businessId: business.id,
+            categories: business.categories,
+            serviceAreas: business.serviceAreas,
+            verified: true
+          }
+        })),
+        summary: businesses.length
+          ? `${businesses.length} verified NAYL businesses match this demand.`
+          : 'No verified NAYL business currently matches this demand; a request can still be opened for future matching.'
+      };
     }
   };
 }

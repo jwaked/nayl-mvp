@@ -1,12 +1,8 @@
-# NAYL MVP API
+# NAYL API
 
-Base URL when run locally:
+Base path: `/api`
 
-```text
-http://localhost:8787
-```
-
-All JSON API responses include an `X-Request-Id` response header. Errors use:
+All responses are JSON. Errors have this shape:
 
 ```json
 {
@@ -18,17 +14,23 @@ All JSON API responses include an `X-Request-Id` response header. Errors use:
 }
 ```
 
-## Health and configuration
+Authenticated routes use:
+
+```http
+Authorization: Bearer <signed-session-token>
+```
+
+Tokens are role-specific; a consumer token cannot access business or admin endpoints.
+
+## Public and configuration
 
 ### `GET /api/health`
 
-Returns service status and version.
+Health and active storage mode.
 
 ### `GET /api/config`
 
-Returns client-safe defaults, six GCC markets, cities, currencies, category labels, and connector descriptors. It never returns connector credentials.
-
-## Search
+Returns GCC markets, categories, connector states, defaults, and storage mode. No secrets are returned.
 
 ### `POST /api/search`
 
@@ -36,164 +38,206 @@ Request:
 
 ```json
 {
-  "query": "I need a reliable cleaner in Dubai today under AED 250",
+  "query": "I need a reliable AC technician in Dubai today under AED 500",
   "market": "AE",
   "city": "Dubai",
-  "locale": "en"
+  "locale": "en",
+  "deep": false
 }
 ```
 
-Example:
+The response includes:
 
-```bash
-curl -X POST http://localhost:8787/api/search \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "query": "I need a reliable cleaner in Dubai today under AED 250",
-    "market": "AE",
-    "city": "Dubai",
-    "locale": "en"
-  }'
-```
+- resolved intent
+- normalized and ranked results
+- source attribution and connector mode on every result
+- per-connector execution status
+- deep-search summary and source links when enabled
 
-Response outline:
+Configured result connectors run concurrently and fail independently.
 
-```json
-{
-  "requestId": "uuid",
-  "generatedAt": "2026-09-04T08:00:00.000Z",
-  "query": "I need a reliable cleaner in Dubai today under AED 250",
-  "context": {
-    "requested": { "market": "AE", "city": "Dubai", "locale": "en" },
-    "resolved": { "market": "AE", "city": "Dubai", "locale": "en" }
-  },
-  "intent": {
-    "category": "cleaning",
-    "market": "AE",
-    "city": "Dubai",
-    "budget": 250,
-    "currency": "AED",
-    "urgency": "today",
-    "confidence": 98
-  },
-  "connectors": [],
-  "results": [],
-  "resultCount": 3
-}
-```
+## Consumer
 
-The endpoint calls eligible connectors concurrently and does not fail the whole search merely because one connector errors.
+### `POST /api/consumer/session`
 
-## Consumer marketplace requests
+Creates an anonymous consumer identity and a signed 180-day token. The browser stores it locally so only that browser can read its requests.
 
-### `POST /api/marketplace/requests`
+### `GET /api/consumer/requests`
 
-Creates a qualified opportunity.
+Role: consumer.
+
+Lists the caller's persisted requests, quotes, booking references, and statuses.
+
+### `POST /api/consumer/requests`
+
+Role: consumer.
 
 ```json
 {
-  "consumerId": "demo-consumer",
-  "query": "Need apartment cleaning in Dubai tomorrow under AED 500",
-  "category": "cleaning",
+  "contact": {
+    "name": "Sara Ahmed",
+    "email": "sara@example.com",
+    "phone": "+971500000000"
+  },
+  "query": "AC repair in Dubai today",
+  "category": "ac-repair",
   "market": "AE",
   "city": "Dubai",
   "budget": 500,
-  "currency": "AED",
-  "urgency": "tomorrow",
+  "urgency": "today",
+  "details": "Living-room unit is blowing warm air.",
   "sourceResult": {
-    "id": "provider-baytcare-cleaning",
-    "title": "BaytCare Home Cleaning",
-    "meta": { "businessId": "biz-baytcare" }
+    "id": "business-...",
+    "source": "NAYL Marketplace",
+    "sourceType": "marketplace",
+    "title": "Provider name",
+    "url": "https://provider.example/",
+    "meta": { "businessId": "business-..." }
   }
 }
 ```
 
-### `GET /api/marketplace/requests?consumerId=demo-consumer`
+The server validates the market, city, category, contact, and optional source. A client-supplied preferred business is accepted only when that business still exists, is verified, is active, and matches the request.
 
-Returns the consumer's opportunities with quotes and booking status, newest first.
+### `POST /api/consumer/requests/:requestId/accept`
 
-### `POST /api/marketplace/requests/:opportunityId/book`
-
-Accepts one quote and declines competing quotes in the MVP record.
+Role: consumer owner.
 
 ```json
-{
-  "consumerId": "demo-consumer",
-  "quoteId": "quote-id"
-}
+{ "quoteId": "quote-..." }
 ```
 
-## Business portal
+Atomically:
 
-### `GET /api/business/profile?businessId=biz-baytcare`
+- verifies ownership and quote validity
+- verifies the provider is still active
+- marks the selected quote accepted
+- marks competitors declined
+- marks the request booked
+- creates a confirmed booking
+- emits audit and optional email notifications
 
-Returns business identity, market, categories, service areas, verification state, and profile fields.
+### `POST /api/consumer/requests/:requestId/cancel`
 
-### `PUT /api/business/profile`
+Role: consumer owner. Cancels an open/quoted request; booked requests cannot be cancelled through this endpoint.
+
+## Business
+
+### `POST /api/business/register`
 
 ```json
 {
-  "businessId": "biz-baytcare",
-  "contactName": "Mariam Al Noor",
-  "email": "ops@example.com",
+  "name": "Al Noor Cooling Services",
+  "nameAr": "خدمات النور للتكييف",
+  "email": "team@provider.com",
+  "password": "StrongPassword1",
   "phone": "+971500000000",
-  "description": "Same-day home cleaning specialists.",
-  "acceptingLeads": true,
-  "serviceAreas": ["Dubai", "Sharjah"]
+  "website": "https://provider.com/",
+  "market": "AE",
+  "serviceAreas": ["Dubai"],
+  "categories": ["ac-repair"],
+  "description": "Licensed technicians providing residential AC diagnostics and repair.",
+  "priceFrom": 180
 }
 ```
 
-### `GET /api/business/opportunities?businessId=biz-baytcare`
+Registration returns a business token. New businesses are `pending` unless the server explicitly enables auto-verification. Pending accounts can edit their profile but cannot access opportunities or appear in search.
 
-Returns opportunities whose market, category, and city match the business profile. Each item includes `myQuote`, `quoteCount`, and `isPreferred`.
-
-### `GET /api/business/kpis?businessId=biz-baytcare`
-
-Returns qualified opportunities, submitted quotes, wins, quoted value, response rate, response time, and rating.
-
-### `POST /api/business/opportunities/:opportunityId/quotes`
-
-Creates or updates the business's quote.
+### `POST /api/business/login`
 
 ```json
 {
-  "businessId": "biz-baytcare",
-  "amount": 420,
-  "currency": "AED",
-  "message": "Two cleaners, supplies included, four-hour service window.",
-  "availableAt": "Tomorrow, 10:00 AM"
+  "email": "team@provider.com",
+  "password": "StrongPassword1"
 }
 ```
 
-The quote currency must match the opportunity currency.
+### `GET /api/business/me`
 
-## Admin & Operations
+Role: business. Returns the caller's profile without password material.
+
+### `PUT /api/business/me`
+
+Role: business. Updates approved profile fields, categories, service areas, price, and lead acceptance.
+
+### `GET /api/business/opportunities`
+
+Role: verified business.
+
+Returns requests matching the provider's market, category, and service area. Customer contact is `null` until the provider wins the booking.
+
+### `POST /api/business/opportunities/:requestId/quotes`
+
+Role: verified matching business.
+
+```json
+{
+  "amount": 325,
+  "currency": "AED",
+  "message": "Includes diagnosis, labour, standard parts, and a service warranty.",
+  "availableAt": "Tomorrow, 10:00 AM",
+  "validUntil": "2026-09-05T12:00:00.000Z"
+}
+```
+
+Submitting again updates that business's existing quote. Currency must equal the request currency; expiry must be in the future.
+
+### `GET /api/business/kpis`
+
+Role: business. Returns opportunities, open opportunities, quotes, wins, win rate, and quoted value.
+
+## Admin and Operations
+
+### `POST /api/admin/login`
+
+Uses `ADMIN_EMAIL` and `ADMIN_PASSWORD` configured on the server. The returned admin token lasts 12 hours.
 
 ### `GET /api/admin/overview`
 
-Returns:
+Role: admin. Returns search, marketplace, booking, GMV, connector, market rollout, and audit data.
 
-- Search, request, quote, booking, conversion, and GMV-by-currency KPIs.
-- Connector modes and configuration state.
-- GCC market rollout seed state.
-- Recent search/demand audit.
-- Foundation counts for verification, dispute, payment-exception, and content queues.
+### `GET /api/admin/businesses`
 
-## Rate limiting
+Role: admin. Lists registered businesses and verification state.
 
-The MVP applies an in-memory IP rate limit to `/api/*`. Configure:
+### `PATCH /api/admin/businesses/:businessId/status`
+
+Role: admin.
+
+```json
+{ "status": "verified" }
+```
+
+Allowed states: `pending`, `verified`, `suspended`.
+
+### `GET /api/admin/requests`
+
+Role: admin. Lists request operations data, including contact details. Restrict admin access accordingly.
+
+## Request status lifecycle
+
+```text
+open
+  ├── quote submitted → quoted
+  │                      ├── consumer accepts → booked
+  │                      └── consumer cancels → cancelled
+  └── consumer cancels → cancelled
+```
+
+Quote status lifecycle:
+
+```text
+submitted → accepted
+          └→ declined
+```
+
+## Rate limits and validation
+
+API calls are subject to an in-process IP rate limit configured through:
 
 ```dotenv
 RATE_LIMIT_WINDOW_MS=60000
-RATE_LIMIT_MAX=120
+RATE_LIMIT_MAX=160
 ```
 
-Response headers include:
-
-```text
-X-RateLimit-Limit
-X-RateLimit-Remaining
-X-RateLimit-Reset
-```
-
-Production should use a shared distributed limiter at the gateway and service levels.
+Inputs are length-limited and validated. JSON bodies are limited to 512 KB. For a multi-instance launch, replace the in-memory limiter with a distributed store and introduce idempotency keys for transactional writes.

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#070809">
+  <meta name="description" content="NAYL Business Console for qualified GCC customer opportunities and quote management.">
+  <title>NAYL Business</title>
+  <link rel="icon" href="/nayl-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-portal="business">
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a class="brand" href="/business" aria-label="NAYL Business home"><img src="/nayl-mark.svg" alt=""><span class="brand__word">NAYL</span><span class="brand__portal">Business</span></a>
+      <div class="topbar__actions">
+        <button id="language-button" class="ghost-button button--small" type="button">العربية</button>
+        <button id="logout-button" class="ghost-button button--small hidden" type="button"></button>
+      </div>
+    </div>
+  </header>
+
+  <section id="auth-view" class="auth-shell">
+    <div class="auth-card">
+      <span class="eyebrow" id="auth-eyebrow">Provider network</span>
+      <h1 id="auth-title">Turn demand into revenue.</h1>
+      <p id="auth-copy">Register your real service profile, complete admin verification, then receive qualified opportunities matched by category and service area.</p>
+      <div class="tab-bar"><button id="login-tab" class="tab-button is-active" type="button">Sign in</button><button id="register-tab" class="tab-button" type="button">Register business</button></div>
+
+      <form id="login-form" class="form-grid">
+        <div class="form-field form-field--full"><label for="login-email">Email</label><input id="login-email" class="input" type="email" required></div>
+        <div class="form-field form-field--full"><label for="login-password">Password</label><input id="login-password" class="input" type="password" required></div>
+        <div class="form-actions"><button id="login-submit" class="primary-button button--wide" type="submit">Sign in</button></div>
+      </form>
+
+      <form id="register-form" class="form-grid hidden">
+        <div class="form-field"><label for="business-name">Business name</label><input id="business-name" class="input" required maxlength="160"></div>
+        <div class="form-field"><label for="business-name-ar">Arabic name (optional)</label><input id="business-name-ar" class="input" maxlength="160"></div>
+        <div class="form-field"><label for="register-email">Email</label><input id="register-email" class="input" type="email" required></div>
+        <div class="form-field"><label for="register-password">Password</label><input id="register-password" class="input" type="password" minlength="8" required></div>
+        <div class="form-field"><label for="business-phone">Phone</label><input id="business-phone" class="input" maxlength="60"></div>
+        <div class="form-field"><label for="business-website">Website (optional)</label><input id="business-website" class="input" type="url"></div>
+        <div class="form-field"><label for="business-market">Market</label><select id="business-market" class="select"></select></div>
+        <div class="form-field"><label for="business-price">Starting price</label><input id="business-price" class="input" type="number" min="0" step="0.01"></div>
+        <div class="form-field"><label for="business-cities">Service areas</label><select id="business-cities" class="select" multiple required></select><span class="field-hint">Use Ctrl/Cmd to select more than one.</span></div>
+        <div class="form-field"><label for="business-categories">Categories</label><select id="business-categories" class="select" multiple required></select><span class="field-hint">Choose every service you can deliver.</span></div>
+        <div class="form-field form-field--full"><label for="business-description">Service description</label><textarea id="business-description" class="textarea" minlength="20" maxlength="1200" required></textarea></div>
+        <div class="form-actions"><button id="register-submit" class="primary-button button--wide" type="submit">Create business account</button></div>
+      </form>
+    </div>
+  </section>
+
+  <main id="dashboard-view" class="page-shell hidden">
+    <section class="dashboard-hero">
+      <div><span class="eyebrow" id="dashboard-eyebrow">Business performance</span><h1 id="business-heading">Your pipeline.</h1><p id="business-subheading">Qualified NAYL opportunities matched to your approved profile.</p></div>
+      <aside class="dashboard-status"><span class="pulse-card__label">Account status</span><strong id="account-status">—</strong><p id="account-status-copy">—</p></aside>
+    </section>
+
+    <section id="metric-grid" class="metric-grid"></section>
+
+    <section class="section split-layout">
+      <div class="panel">
+        <div class="panel__header"><div><span class="eyebrow">Demand feed</span><h2 id="opportunities-title">Qualified opportunities</h2></div><button id="refresh-business" class="icon-button" type="button"></button></div>
+        <div id="opportunity-list" class="panel__body--flush opportunity-list"></div>
+      </div>
+
+      <aside class="stack">
+        <div class="panel">
+          <div class="panel__header"><h3 id="profile-title">Marketplace profile</h3></div>
+          <div class="panel__body">
+            <form id="profile-form" class="form-grid">
+              <div class="form-field form-field--full"><label for="profile-name">Business name</label><input id="profile-name" class="input" required></div>
+              <div class="form-field form-field--full"><label for="profile-phone">Phone</label><input id="profile-phone" class="input"></div>
+              <div class="form-field form-field--full"><label for="profile-website">Website</label><input id="profile-website" class="input" type="url"></div>
+              <div class="form-field form-field--full"><label for="profile-price">Starting price</label><input id="profile-price" class="input" type="number" min="0" step="0.01"></div>
+              <div class="form-field form-field--full"><label for="profile-description">Description</label><textarea id="profile-description" class="textarea" required></textarea></div>
+              <label class="toggle form-field--full"><span id="accepting-leads-label">Accept new opportunities</span><input id="profile-accepting" type="checkbox"><span class="toggle__track"><span class="toggle__thumb"></span></span></label>
+              <div class="form-actions"><button id="profile-submit" class="secondary-button button--wide" type="submit">Save profile</button></div>
+            </form>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <dialog id="quote-dialog" class="dialog">
+    <form id="quote-form">
+      <div class="dialog__header"><div><span class="eyebrow">Submit a real quote</span><h2 id="quote-dialog-title">Price this opportunity</h2></div><button class="icon-button" type="button" data-close-dialog></button></div>
+      <div class="dialog__body">
+        <div id="quote-opportunity" class="request-card" style="margin-bottom:20px"></div>
+        <div class="form-grid">
+          <div class="form-field"><label for="quote-amount">Amount</label><input id="quote-amount" class="input" type="number" min="0.01" step="0.01" required></div>
+          <div class="form-field"><label for="quote-currency">Currency</label><input id="quote-currency" class="input" readonly></div>
+          <div class="form-field"><label for="quote-available">Available at</label><input id="quote-available" class="input" required placeholder="Tomorrow, 10:00 AM"></div>
+          <div class="form-field"><label for="quote-valid">Valid until (optional)</label><input id="quote-valid" class="input" type="datetime-local"></div>
+          <div class="form-field form-field--full"><label for="quote-message">What is included</label><textarea id="quote-message" class="textarea" minlength="10" maxlength="1000" required></textarea></div>
+        </div>
+      </div>
+      <div class="dialog__footer"><button class="ghost-button" type="button" data-close-dialog>Cancel</button><button id="quote-submit" class="primary-button" type="submit">Send quote</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast-root" class="toast-root" aria-live="assertive"></div>
+  <script type="module" src="/business.js"></script>
+</body>
+</html>

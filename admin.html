@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#070809">
+  <meta name="description" content="NAYL Admin and Operations console.">
+  <title>NAYL Admin & Operations</title>
+  <link rel="icon" href="/nayl-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-portal="admin">
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a class="brand" href="/admin"><img src="/nayl-mark.svg" alt=""><span class="brand__word">NAYL</span><span class="brand__portal">Admin & Ops</span></a>
+      <div class="topbar__actions"><button id="language-button" class="ghost-button button--small" type="button">العربية</button><button id="logout-button" class="ghost-button button--small hidden" type="button"></button></div>
+    </div>
+  </header>
+
+  <section id="auth-view" class="auth-shell">
+    <div class="auth-card">
+      <span class="eyebrow" id="auth-eyebrow">Restricted operations</span>
+      <h1 id="auth-title">Control the network.</h1>
+      <p id="auth-copy">Use the admin credentials configured in Render environment variables. Credentials never appear in the browser bundle.</p>
+      <form id="login-form" class="form-grid" style="margin-top:24px">
+        <div class="form-field form-field--full"><label for="admin-email">Admin email</label><input id="admin-email" class="input" type="email" required></div>
+        <div class="form-field form-field--full"><label for="admin-password">Password</label><input id="admin-password" class="input" type="password" required></div>
+        <div class="form-actions"><button id="login-submit" class="primary-button button--wide" type="submit">Sign in</button></div>
+      </form>
+    </div>
+  </section>
+
+  <main id="dashboard-view" class="page-shell hidden">
+    <section class="dashboard-hero">
+      <div><span class="eyebrow" id="dashboard-eyebrow">Network operations</span><h1 id="dashboard-title">Truth at a glance.</h1><p id="dashboard-copy">Connector health, business verification, marketplace demand, quotes, and confirmed bookings.</p></div>
+      <aside class="dashboard-status"><span class="pulse-card__label" id="generated-label">Last generated</span><strong id="generated-at">—</strong><p id="storage-copy">—</p></aside>
+    </section>
+
+    <section id="metric-grid" class="metric-grid"></section>
+
+    <section class="section split-layout">
+      <div class="stack">
+        <div class="panel"><div class="panel__header"><div><span class="eyebrow">KYB foundation</span><h2 id="businesses-title">Business verification</h2></div><button id="refresh-admin" class="icon-button" type="button"></button></div><div id="business-table" class="panel__body--flush table-wrap"></div></div>
+        <div class="panel"><div class="panel__header"><div><span class="eyebrow">Demand audit</span><h2 id="requests-title">Quote requests</h2></div></div><div id="request-table" class="panel__body--flush table-wrap"></div></div>
+      </div>
+      <aside class="stack">
+        <div class="panel"><div class="panel__header"><h3 id="connectors-title">Connector health</h3></div><div id="connector-grid" class="panel__body connector-grid"></div></div>
+        <div class="panel"><div class="panel__header"><h3 id="audit-title">Recent operations</h3></div><div id="audit-list" class="panel__body stack"></div></div>
+      </aside>
+    </section>
+  </main>
+
+  <div id="toast-root" class="toast-root" aria-live="assertive"></div>
+  <script type="module" src="/admin.js"></script>
+</body>
+</html>

@@ -1,17 +1,17 @@
 {
-  "name": "nayl-gcc-ai-buyer-full-flat",
-  "version": "0.2.0",
+  "name": "nayl-production-v1",
+  "version": "1.0.0",
   "private": true,
-  "description": "Complete NAYL GCC-first AI buyer MVP, flattened for GitHub browser upload and Render deployment.",
+  "description": "NAYL GCC-first AI buyer with live search connectors and a persisted request-to-quote workflow.",
   "type": "module",
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js",
-    "test": "node --test test-intent.js test-search.js test-marketplace-flow.js",
+    "test": "node --test",
     "check": "node check.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "license": "UNLICENSED"
 }

@@ -1,299 +1,174 @@
-# NAYL architecture
+# NAYL Architecture
 
-## 1. Current runnable MVP
+## System view
 
-```mermaid
-flowchart LR
-  U[Consumer browser] --> W[Single responsive web client]
-  B[Business browser] --> W
-  A[Admin browser] --> W
-  W --> API[Native Node HTTP API]
+```text
+┌────────────────────────────────────────────────────────────────────┐
+│                         Browser clients                            │
+│                                                                    │
+│  Consumer `/`       Business `/business`       Admin `/admin`      │
+│  anonymous session  business auth + profile    operations auth      │
+└──────────────────────────────┬─────────────────────────────────────┘
+                               │ same-origin HTTPS / JSON
+                               ▼
+┌────────────────────────────────────────────────────────────────────┐
+│                    NAYL Node.js application                        │
+│                                                                    │
+│  Security headers · input validation · role authorization          │
+│  Search API · request workflow · quote workflow · booking workflow │
+│  Admin operations · audit · notification orchestration             │
+└───────────────┬───────────────────────────────┬────────────────────┘
+                │                               │
+                ▼                               ▼
+┌──────────────────────────────┐    ┌───────────────────────────────┐
+│ Search orchestration         │    │ Persistence                   │
+│                              │    │                               │
+│ • Local intent fallback      │    │ Preferred: Supabase/Postgres │
+│ • OpenAI structured intent   │    │ JSONB state + revision CAS    │
+│ • Parallel connectors        │    │                               │
+│ • Timeout isolation          │    │ Development: atomic JSON file│
+│ • Schema normalization       │    └───────────────────────────────┘
+│ • Deduplication and ranking  │
+└───────────────┬──────────────┘
+                │
+     ┌──────────┼──────────────┬────────────────┐
+     ▼          ▼              ▼                ▼
+ NAYL live   Google Places  Brave Search   OpenAI web_search
+ providers   Text Search    public web     deep sourcing
 
-  API --> O[Search orchestrator]
-  O --> M[NAYL Marketplace\nlive-mvp]
-  O --> BR[Brave Search\nkey-gated]
-  O --> GP[Google Places\nkey-gated]
-  O --> PD[Partner adapter\ndemo-only]
-
-  API --> MS[Marketplace service]
-  API --> BS[Business service]
-  API --> AS[Admin service]
-  M --> DB[(Atomic JSON MVP store)]
-  MS --> DB
-  BS --> DB
-  AS --> DB
-  O --> DB
+Optional side effect: Resend transactional email
 ```
 
-The current build deliberately uses no runtime npm dependencies. Node serves the static client and HTTP API, performs native `fetch` calls to configured connectors, and persists MVP records to one JSON file using atomic replace semantics.
+## Search execution
 
-## 2. Search sequence
+1. The API validates the query, market, city, locale, and deep-search flag.
+2. A deterministic parser creates a safe fallback intent.
+3. When configured, OpenAI Structured Outputs refines the intent using only supported category/market enums.
+4. NAYL Marketplace, Google Places, and Brave run concurrently.
+5. Deep search runs only when the consumer activates it and OpenAI is configured.
+6. Each connector returns the common result contract.
+7. The orchestrator deduplicates and ranks results while preserving attribution, source type, source mode, and external URL.
+8. Connector failures are surfaced in the response and do not fabricate replacement results.
+9. A search audit event is persisted.
 
-```mermaid
-sequenceDiagram
-  participant C as Consumer
-  participant API as POST /api/search
-  participant I as Intent extractor
-  participant O as Orchestrator
-  participant M as Marketplace
-  participant E as External connectors
-  participant R as Ranker
-  participant D as Audit store
-
-  C->>API: natural-language demand + market/city/locale
-  API->>I: extract category, location, budget, urgency
-  I-->>API: structured intent + confidence
-  API->>O: execute eligible connectors
-  par first-party
-    O->>M: provider search
-    M-->>O: normalized marketplace results
-  and permitted external sources
-    O->>E: concurrent calls with timeout
-    E-->>O: results, not-configured, demo, or error
-  end
-  O->>R: normalize, deduplicate, score
-  R-->>O: shared ranked results
-  O->>D: append search/connector audit
-  O-->>C: intent + connector truth + results
-```
-
-## 3. Shared result contract
-
-Every connector emits the same consumer-facing shape. Connectors may add internal `meta` fields without changing the UI contract.
+## Shared result contract
 
 ```json
 {
   "id": "source-id",
-  "source": "NAYL Marketplace",
-  "sourceType": "marketplace",
-  "sourceMode": "live-mvp",
-  "title": "Provider or offer",
-  "subtitle": "Description",
-  "price": 280,
-  "currency": "AED",
-  "priceLabel": "From AED 280",
-  "rating": 4.8,
-  "reviews": 320,
-  "availability": "Today, 2:00 PM",
-  "score": 94,
-  "action": "Request quote",
-  "actionType": "marketplace-request",
-  "url": null,
-  "attribution": "Provider in the NAYL MVP marketplace",
-  "meta": {
-    "businessId": "biz-example",
-    "categories": ["cleaning"],
-    "serviceAreas": ["Dubai"]
-  }
-}
-```
-
-## 4. Connector state contract
-
-A connector descriptor separates configuration from execution outcome.
-
-```json
-{
-  "id": "google-places",
-  "name": "Local Places",
+  "source": "Google Places",
   "sourceType": "places",
-  "mode": "not-configured",
-  "configured": false,
-  "status": "not-configured",
-  "durationMs": 0,
-  "resultCount": 0,
-  "message": "Connector credentials or configuration are not present."
+  "sourceMode": "live",
+  "title": "Provider or source title",
+  "subtitle": "Description or address",
+  "price": null,
+  "currency": "AED",
+  "priceLabel": null,
+  "rating": 4.7,
+  "reviews": 250,
+  "availability": "Open now",
+  "score": 91,
+  "action": "View place",
+  "actionType": "external-link",
+  "url": "https://...",
+  "attribution": "Google Places",
+  "requestable": true,
+  "meta": {}
 }
 ```
 
-Allowed modes:
+External search results remain external and attributed. A consumer can use them as context for a NAYL request, but NAYL does not pretend the external provider has joined or will answer. Only registered, verified NAYL businesses receive and submit quotes.
 
-- `live-mvp`: functioning first-party MVP capability.
-- `live`: functioning configured external connector.
-- `not-configured`: credentials, agreement, or configuration absent.
-- `demo`: illustrative adapter/data, never represented as a commercial integration.
-
-Execution status may also become `error` while mode remains `live`.
-
-## 5. MVP ranking
-
-The ranker uses deterministic factors so the behavior is explainable:
-
-- Source/actionability bonus, prioritizing first-party marketplace actions.
-- Category match.
-- City/service-area match.
-- Budget fit when a numeric price exists.
-- Rating and review-volume contribution.
-- Availability alignment with urgency.
-- Demo penalty.
-- Deduplication by normalized title and destination domain.
-
-The score is a relative MVP ranking signal from 1 to 99; it is not a quality guarantee. Production ranking needs labelled evaluation, consumer outcome feedback, fairness/quality review, experiment controls, and rollback.
-
-## 6. Marketplace domain model
-
-```mermaid
-erDiagram
-  CONSUMER ||--o{ OPPORTUNITY : creates
-  OPPORTUNITY ||--o{ QUOTE : receives
-  BUSINESS ||--o{ QUOTE : submits
-  BUSINESS ||--o{ PROVIDER_OFFER : publishes
-  OPPORTUNITY ||--o| BOOKING : becomes
-  QUOTE ||--o| BOOKING : selected_for
-
-  OPPORTUNITY {
-    string id
-    string query
-    string category
-    string market
-    string city
-    number budget
-    string currency
-    string urgency
-    string status
-  }
-
-  QUOTE {
-    string id
-    string businessId
-    number amount
-    string currency
-    string availableAt
-    string status
-  }
-
-  BOOKING {
-    string opportunityId
-    string quoteId
-    string status
-    datetime bookedAt
-  }
-```
-
-In the MVP, booking fields live on the opportunity. Production should use a dedicated order/booking aggregate with a validated state machine and idempotent commands.
-
-## 7. Target production architecture
-
-```mermaid
-flowchart TB
-  subgraph Channels
-    WEB[Consumer web]
-    BIZ[Business portal]
-    OPS[Admin & operations]
-    MOBILE[Future mobile apps]
-  end
-
-  Channels --> EDGE[CDN / WAF / API Gateway]
-  EDGE --> BFF[Channel BFF / API composition]
-  BFF --> IAM[Identity, sessions, consent, authorization]
-  BFF --> DEMAND[Demand & opportunity]
-  BFF --> QUOTE[Quote service]
-  BFF --> ORDER[Booking/order state machine]
-  BFF --> PAY[Payment orchestration & ledger]
-  BFF --> SEARCH[Search orchestration]
-  BFF --> PROFILE[Consumer & business profiles/KYB]
-  BFF --> CASES[Admin case management]
-
-  SEARCH --> RANK[Intent & ranking]
-  SEARCH --> CONN[Connector workers]
-  CONN --> EXT[Approved external APIs/feeds/deep links]
-
-  DEMAND --> BUS[(Event bus / queues)]
-  QUOTE --> BUS
-  ORDER --> BUS
-  PAY --> BUS
-  PROFILE --> BUS
-  SEARCH --> BUS
-
-  BUS --> NOTIFY[Notifications]
-  BUS --> RISK[Fraud/abuse controls]
-  BUS --> ANALYTICS[Analytics/experiments]
-  BUS --> AUDIT[Immutable audit pipeline]
-
-  DEMAND --> PG[(PostgreSQL)]
-  QUOTE --> PG
-  ORDER --> PG
-  PROFILE --> PG
-  PAY --> LEDGER[(Ledger store)]
-  SEARCH --> CACHE[(Cache)]
-  PROFILE --> OBJECTS[(Encrypted evidence storage)]
-  CONN --> VAULT[Secret vault / KMS]
-```
-
-## 8. Service boundaries and ownership
-
-A service split should be driven by one or more of these conditions:
-
-- Different data ownership or retention requirement.
-- Different authorization or compliance boundary.
-- Independent scale/latency profile.
-- Failure isolation requirement.
-- Separate deployment cadence or team ownership.
-- Financial correctness requirement, especially the ledger.
-
-Until those conditions exist, keep modules in a well-structured deployable monolith to reduce distributed-system overhead.
-
-## 9. Security architecture
-
-### Current MVP controls
-
-- Strict security headers and no third-party client scripts.
-- Server-side connector keys only.
-- Connector timeouts and failure isolation.
-- Basic IP rate limiting.
-- Request IDs and structured logs.
-- Input size and field validation.
-- Atomic data-file writes.
-- Source/mode disclosure on each result.
-
-### Required before production
-
-- Managed identity and session security.
-- Centralized RBAC/ABAC and object-level authorization.
-- KYB evidence control and reviewer segregation.
-- Secret vault, key rotation, encryption, and data-classification controls.
-- API gateway/WAF, abuse controls, bot and account-takeover monitoring.
-- Signed webhook verification and replay prevention.
-- Idempotency and concurrency control.
-- Tamper-resistant audit pipeline and privileged-access monitoring.
-- Secure SDLC, SAST/DAST, dependency/container scanning, penetration testing.
-- Backup, restoration, disaster recovery, and incident response.
-- Market-specific privacy, retention, cross-border transfer, and data-residency decisions.
-
-## 10. Connector governance
-
-Every production connector should have a versioned registry record:
+## Marketplace transaction
 
 ```text
-connector id
-commercial/legal owner
-technical owner
-approved markets and categories
-mode and activation date
-API/feed/deep-link method
-credential reference in vault
-terms and branding version
-allowed fields and retention
-freshness and cache policy
-rate/cost budget
-attribution requirements
-health SLO and alert route
-incident and deactivation procedure
+consumer session
+      │
+      ▼
+validated persisted request
+      │ match: verified + active + country + city + category
+      ▼
+business opportunity feed
+      │
+      ▼
+validated quote (price, currency, availability, expiry, message)
+      │
+      ▼
+consumer comparison
+      │ atomic acceptance transaction
+      ▼
+confirmed booking + losing quotes declined + winning contact released
 ```
 
-A deployment should not be able to switch a connector to Live merely because an API key exists. Production activation should also require an approved registry state and automated conformance tests.
+The contact-release rule limits disclosure: matching businesses see demand context but not personal contact information. Only the booked business receives the contact.
 
-## 11. Observability
+## Authentication and authorization
 
-Instrument at minimum:
+- Business passwords: random salt + Node.js `scrypt`, 64-byte derived hash.
+- Sessions: HMAC-SHA256 signed bearer tokens with role, subject, issue time, expiry, and unique token ID.
+- Consumer session: anonymous identity, 180-day expiry.
+- Business session: 30-day expiry.
+- Admin session: 12-hour expiry, created only after constant-time comparison with server environment credentials.
+- Route handlers enforce role and resource ownership.
 
-- End-to-end search latency and result count.
-- Per-connector latency, timeout, error, rate-limit, and cost.
-- Intent field confidence and correction.
-- Ranking position to click/request/book outcome.
-- Opportunity, quote, booking, payment, refund, and dispute transitions.
-- Notification delivery and failure.
-- Authorization denials and privileged operations.
-- Queue depth, age, retry, dead-letter, and SLA breach.
+For public scale, migrate to a managed identity provider, HttpOnly secure cookies or short-lived access tokens with rotation, MFA for admins, email/phone verification, session revocation, and granular RBAC.
 
-Use correlation IDs across synchronous requests, async events, partner calls, and operations cases.
+## Persistence model
+
+### Pilot mode: Supabase/PostgreSQL state document
+
+The complete state is stored in one `jsonb` row (`nayl_state.state_key='primary'`) with a revision number. Writes use optimistic compare-and-swap semantics:
+
+1. read `data, revision`
+2. mutate a private copy
+3. update only where the revision still matches
+4. increment revision
+5. retry on conflict
+
+Benefits for this stage:
+
+- no database driver dependency
+- works through Supabase PostgREST
+- persistent on Render Free
+- atomic application-level transitions
+- simple export and reset
+
+Limitations:
+
+- the whole document is read/written on each transaction
+- write contention grows with traffic
+- database constraints cannot protect individual business/quote/booking records
+- analytics queries require application processing
+
+### Scale target
+
+Normalize into tables such as:
+
+```text
+users, consumer_profiles, organizations, business_users
+businesses, branches, categories, service_areas, verifications
+searches, connector_runs, search_results
+quote_requests, request_matches, quotes, bookings, order_events
+payments, ledger_entries, refunds, disputes
+reviews, notifications, notification_attempts
+audit_events, admin_roles, admin_role_assignments
+```
+
+Add row-level transaction boundaries, unique/idempotency constraints, queues, outbox processing, backups, and a warehouse/event stream.
+
+## Connector security
+
+All provider credentials stay in server environment variables. The browser calls only NAYL. Source content is treated as untrusted:
+
+- external URLs allow only `http` and `https`
+- web markup is stripped before display
+- text lengths are capped
+- OpenAI structured deep results are kept only when their canonical URL appears in the actual source list returned by the web-search tool
+- source attribution remains visible and clickable
+- the application never embeds credentials into result URLs or browser code
+
+## Frontend design
+
+The interface uses an original dark performance-dashboard system influenced by high-level traits the user liked—strong contrast, telemetry rings, compact metrics, luminous action states, and restrained motion. It does not copy WHOOP logos, assets, layouts, product terminology, or proprietary visual elements.
+
+All three portals share design tokens but have separate HTML and JavaScript entry points. English/Arabic switching updates text direction (`ltr`/`rtl`) and localized content.

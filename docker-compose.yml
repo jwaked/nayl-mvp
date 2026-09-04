@@ -1,12 +1,17 @@
 services:
-  nayl:
+  app:
     build: .
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+      NODE_ENV: production
+      SESSION_SECRET: change-this-long-secret
+      ADMIN_EMAIL: admin@nayl.local
+      ADMIN_PASSWORD: change-this-password1
+      AUTO_VERIFY_BUSINESSES: "false"
     ports:
       - "8787:8787"
-    env_file:
-      - .env
     volumes:
       - nayl-data:/app/.data
-
 volumes:
   nayl-data:
