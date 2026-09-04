@@ -1,0 +1,15 @@
+{
+  "name": "NAYL GCC AI Buyer",
+  "short_name": "NAYL",
+  "start_url": "/#consumer",
+  "display": "standalone",
+  "background_color": "#f5f8f7",
+  "theme_color": "#0b1f33",
+  "icons": [
+    {
+      "src": "/nayl-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b1f33">
+    <meta name="description" content="NAYL — a GCC-first AI buyer that turns demand into comparable marketplace and external-source results.">
+    <title>NAYL — GCC AI Buyer</title>
+    <link rel="icon" href="/nayl-mark.svg" type="image/svg+xml">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <header class="app-header">
+      <a class="brand" href="#consumer" aria-label="NAYL home">
+        <img src="/nayl-mark.svg" alt="" width="42" height="42">
+        <span class="brand-copy">
+          <strong>NAYL</strong>
+          <small id="brand-caption">GCC AI Buyer</small>
+        </span>
+      </a>
+      <nav id="portal-nav" class="portal-nav" aria-label="Primary navigation"></nav>
+      <div id="header-actions" class="header-actions"></div>
+    </header>
+
+    <main id="app" class="app-shell" aria-live="polite">
+      <section class="loading-screen">
+        <div class="loading-mark"><img src="/nayl-mark.svg" alt="" width="64" height="64"></div>
+        <p>Loading NAYL…</p>
+      </section>
+    </main>
+
+    <footer id="app-footer" class="app-footer"></footer>
+    <div id="modal-root"></div>
+    <div id="toast-root" class="toast-root" aria-live="assertive"></div>
+
+    <script type="module" src="/web-app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+NAYL FULL PACKAGE - GITHUB UPLOAD
+
+1. Extract this ZIP on your computer.
+2. Open the extracted NAYL-FULL-FLAT-GITHUB-UPLOAD folder.
+3. Select all files inside the folder. Do not select or upload the ZIP itself.
+4. In GitHub, open your repository and choose Add file -> Upload files.
+5. Drag all selected files onto the page and commit the changes.
+6. Confirm that Dockerfile, package.json, server.js, index.html, and backend-app.js appear directly on the repository front page.
+7. In Render, use Runtime: Docker, Root Directory: blank, Dockerfile Path: ./Dockerfile, and Health Check Path: /api/health.
+8. Choose Manual Deploy -> Clear build cache & deploy.
+
+The screenshots and documentation are included because this is the complete package. They are not required for the application to run.
