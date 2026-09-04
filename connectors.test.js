@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGooglePlacesConnector } from './connector-google-places.js';
-import { createBraveConnector } from './connector-brave.js';
-import { createOpenAiIntelligence } from './connector-openai.js';
-import { MARKETS, CATEGORIES } from './data-seed.js';
+import { createGooglePlacesConnector } from './backend-connector-google-places.js';
+import { createBraveConnector } from './backend-connector-brave.js';
+import { createOpenAiIntelligence } from './backend-connector-openai.js';
+import { MARKETS, CATEGORIES } from './backend-data-seed.js';
 
 const intent = {
   query: 'AC repair in Dubai today under AED 500',
@@ -172,7 +172,7 @@ test('uses OpenAI structured intent and source-verified Responses API deep searc
 });
 
 test('builds the live Resend notification request without exposing credentials to the browser', async (t) => {
-  const { createEmailConnector } = await import('./connector-email.js');
+  const { createEmailConnector } = await import('./backend-connector-email.js');
   const originalFetch = globalThis.fetch;
   t.after(() => { globalThis.fetch = originalFetch; });
   let captured;

@@ -15,7 +15,7 @@ import {
 
 const copy = {
   en: {
-    authEyebrow: 'Provider network', authTitle: 'Turn demand into revenue.', authCopy: 'Register your real service profile, complete admin verification, then receive qualified opportunities matched by category and service area.',
+    authEyebrow: 'Provider network', authTitle: 'Turn demand into revenue.', authCopy: 'Register your real service profile and receive qualified opportunities matched by category and service area. Network policy determines whether activation is immediate or reviewed.',
     signIn: 'Sign in', register: 'Register business', create: 'Create business account', creating: 'Creating…', signingIn: 'Signing in…',
     dashboardEyebrow: 'Business performance', pipeline: 'Your pipeline.', pipelineCopy: 'Qualified NAYL opportunities matched to your approved profile.',
     accountStatus: 'Account status', pendingCopy: 'An administrator must verify the profile before it appears in search or receives opportunities.', verifiedCopy: 'Your profile is live and receiving matching demand.', suspendedCopy: 'Your profile has been suspended. Contact NAYL operations.',

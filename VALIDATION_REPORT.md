@@ -1,41 +1,76 @@
 # NAYL validation report
 
-Validated on 4 September 2026 with Node.js 22.16.0.
+Validated on 4 September 2026 with Node.js 22.
 
 ## Automated validation
 
-- `npm ci --omit=dev`: completed; npm reported 0 vulnerabilities.
-- `npm run check`: validated 27 JavaScript files, required routes, and embedded-secret patterns.
-- `npm test`: 10 tests passed, 0 failed.
+- `npm run check`: passed for 29 JavaScript files, required routes, and embedded-secret patterns.
+- `npm test`: 12 tests passed, 0 failed.
 
-The automated suite covers:
+The suite covers:
 
 1. Dedicated consumer, business, and admin routes.
-2. Honest connector states and an empty non-fabricated marketplace.
-3. Consumer request → admin-verified business → quote → acceptance → confirmed booking.
+2. Truthful connector states and an empty non-fabricated marketplace.
+3. Consumer request → business quote → acceptance → confirmed booking.
 4. Consumer, business, and admin role isolation.
 5. Invalid request and expired quote rejection.
 6. Current and legacy Supabase server-key header behavior.
-7. Google Places Text Search request and response mapping.
-8. Brave Search request and response mapping.
-9. OpenAI structured intent and source-verified Responses API web search mapping.
-10. Resend transactional-email request mapping without browser credential exposure.
+7. First-run owner setup and permanent setup closure.
+8. Encrypted admin-vault connector persistence with no raw-key leakage.
+9. Protected connector credential tests for OpenAI, Google, Brave, and Resend.
+10. Google Places request and result mapping.
+11. Brave Search request and result mapping.
+12. OpenAI structured intent, source-verified Deep Search, and Resend email contracts.
 
-## HTTP smoke validation
+## Direct HTTP lifecycle validation
 
-The application started cleanly and returned HTTP 200 for:
+A clean application instance was started without external provider credentials or a preconfigured administrator. The following completed successfully over the running HTTP server:
 
-- `/api/health`
-- `/`
-- `/business`
-- `/admin`
+```text
+create owner
+→ register provider
+→ provider automatically verified under direct-pilot policy
+→ register buyer
+→ marketplace search returns provider
+→ create persisted quote request
+→ provider receives opportunity
+→ provider submits quote
+→ buyer accepts quote
+→ confirmed booking created
+→ admin KPI records booking
+```
 
-The flat edition additionally returned HTTP 404 for direct requests to backend and configuration files such as `/server.js`, `/backend-app.js`, `/.env.example`, and `/README.md`.
+Observed states:
 
-## External-service validation boundary
+```text
+Business: verified
+Request: open → quoted → booked
+Quote: submitted → accepted
+Booking: confirmed
+NAYL Marketplace: live
+Local persistent storage: ready
+```
 
-No private API credentials were supplied. Therefore, authenticated calls to OpenAI, Google Places, Brave Search, Supabase, and Resend were not made from this environment. Their current HTTP request/response contracts are covered by isolated tests. At runtime, a connector without a valid credential is shown as `not-configured`; it does not return fabricated results.
+## Connector validation boundary
 
-## Container validation boundary
+No user-owned OpenAI, Google, Brave, Resend, or Supabase credentials were supplied. Therefore, authenticated production calls were not executed during packaging. Provider HTTP contracts and the protected credential-test paths were exercised with controlled mock responses.
 
-A Docker engine was not available in the build environment, so the Docker image itself was not executed here. Both packages were executed directly under Node.js, and their Dockerfiles use Node.js 22 Alpine with the tested server entrypoint.
+At runtime, the owner can enter real credentials at `/admin`. The value is encrypted before persistence, a masked state is returned, and connector factories use the new value immediately without redeployment.
+
+## Browser-rendering boundary
+
+The execution environment's Chromium policy blocked loopback navigation with `ERR_BLOCKED_BY_ADMINISTRATOR`, so new browser screenshots could not be captured from the local HTTP service. HTML, CSS, and client JavaScript passed syntax checks, API routes were exercised directly, and the portal files were served successfully.
+
+## Docker boundary
+
+A Docker engine was not available in the packaging environment. The Dockerfile uses Node.js 22 Alpine and the same server entrypoint validated directly under Node.js.
+
+## Flat GitHub package validation
+
+The no-folder GitHub package was independently validated after import and asset-path rewriting:
+
+- 29 JavaScript files passed syntax and secret-pattern checks.
+- 12 automated tests passed, 0 failed.
+- `/`, `/business`, `/admin`, and `/api/health` returned HTTP 200.
+- Backend and configuration files including `/server.js`, `/backend-app.js`, `/.env.example`, and `/README.md` returned HTTP 404.
+- A fresh owner → provider → buyer → request → quote → booking lifecycle completed over HTTP.

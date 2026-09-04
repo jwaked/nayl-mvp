@@ -4,6 +4,7 @@ services:
     runtime: docker
     plan: free
     healthCheckPath: /api/health
+    autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
@@ -15,33 +16,13 @@ services:
         value: AE
       - key: DEFAULT_CITY
         value: Dubai
-      - key: APP_BASE_URL
-        sync: false
       - key: AUTO_VERIFY_BUSINESSES
-        value: "false"
+        value: "true"
+      - key: OPENAI_MODEL
+        value: gpt-5.6-luna
+      - key: OPENAI_DEEP_MODEL
+        value: gpt-5.6-terra
       - key: CONNECTOR_TIMEOUT_MS
         value: "20000"
       - key: DEEP_SEARCH_TIMEOUT_MS
         value: "90000"
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SECRET_KEY
-        sync: false
-      - key: ADMIN_EMAIL
-        sync: false
-      - key: ADMIN_PASSWORD
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_MODEL
-        value: gpt-5-mini
-      - key: OPENAI_DEEP_MODEL
-        value: gpt-5.5
-      - key: GOOGLE_MAPS_API_KEY
-        sync: false
-      - key: BRAVE_SEARCH_API_KEY
-        sync: false
-      - key: RESEND_API_KEY
-        sync: false
-      - key: EMAIL_FROM
-        sync: false

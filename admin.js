@@ -2,22 +2,28 @@ import { api, escapeHtml, formatDate, formatMoney, getLocale, icon, setBusy, set
 
 const copy = {
   en: {
-    authEyebrow: 'Restricted operations', authTitle: 'Control the network.', authCopy: 'Use the admin credentials configured in Render environment variables. Credentials never appear in the browser bundle.', signIn: 'Sign in', signingIn: 'Signing in…', logout: 'Sign out',
-    dashboardEyebrow: 'Network operations', dashboardTitle: 'Truth at a glance.', dashboardCopy: 'Connector health, business verification, marketplace demand, quotes, and confirmed bookings.', generated: 'Last generated',
-    businesses: 'Business verification', requests: 'Quote requests', connectors: 'Connector health', audit: 'Recent operations',
+    authEyebrow: 'Restricted operations', authTitle: 'Control the network.', authCopy: 'Sign in to manage providers, demand, live connectors, and bookings.', signIn: 'Sign in', signingIn: 'Signing in…', logout: 'Sign out',
+    setupTitle: 'First launch', setupCopy: 'Create the owner account now. This setup closes permanently after the first owner is created.', setupSubmit: 'Create owner account', settingUp: 'Creating owner…',
+    dashboardEyebrow: 'Network operations', dashboardTitle: 'Truth at a glance.', dashboardCopy: 'Configure live search, verify businesses, and monitor the full buyer-to-booking loop.', generated: 'Last generated',
+    businesses: 'Business verification', requests: 'Quote requests', connectors: 'Runtime health', audit: 'Recent operations',
     searchesToday: 'Searches today', quoteRequests: 'Quote requests', quotesSubmitted: 'Quotes submitted', bookings: 'Bookings',
     noBusinesses: 'No businesses have registered yet.', noRequests: 'No quote requests yet.', noAudit: 'No operational events yet.',
-    verify: 'Verify', suspend: 'Suspend', setPending: 'Set pending', statusUpdated: 'Business status updated.', refresh: 'Refresh',
-    storagePostgres: 'Persistent PostgreSQL storage is active.', storageLocal: 'Local JSON storage is active; configure SUPABASE_URL and SUPABASE_SECRET_KEY for public use.'
+    verify: 'Verify', suspend: 'Suspend', setPending: 'Set pending', statusUpdated: 'Business status updated.',
+    storagePostgres: 'Persistent Supabase PostgreSQL storage is active.', storageLocal: 'Persistent JSON storage is active on this server. Add a disk or Supabase before scaling to multiple instances.',
+    saved: 'Connector configuration saved.', testing: 'Testing…', testPassed: 'Connection passed.', testFailed: 'Connection failed.',
+    configured: 'Configured', setupRequired: 'Setup required', environment: 'Environment', vault: 'Admin vault', notTested: 'Not tested yet.'
   },
   ar: {
-    authEyebrow: 'عمليات مقيدة', authTitle: 'تحكّم بالشبكة.', authCopy: 'استخدم بيانات الإدارة المحفوظة في متغيرات بيئة Render. لا تظهر البيانات السرية في المتصفح.', signIn: 'تسجيل الدخول', signingIn: 'جارٍ الدخول…', logout: 'تسجيل الخروج',
-    dashboardEyebrow: 'عمليات الشبكة', dashboardTitle: 'الحقيقة بنظرة واحدة.', dashboardCopy: 'صحة الموصلات، تحقق الشركات، الطلبات، عروض الأسعار، والحجوزات المؤكدة.', generated: 'آخر تحديث',
-    businesses: 'تحقق الشركات', requests: 'طلبات عروض السعر', connectors: 'صحة الموصلات', audit: 'آخر العمليات',
+    authEyebrow: 'عمليات مقيدة', authTitle: 'تحكّم بالشبكة.', authCopy: 'سجّل الدخول لإدارة المزودين والطلب والموصلات المباشرة والحجوزات.', signIn: 'تسجيل الدخول', signingIn: 'جارٍ الدخول…', logout: 'تسجيل الخروج',
+    setupTitle: 'التشغيل الأول', setupCopy: 'أنشئ حساب المالك الآن. يُغلق الإعداد نهائياً بعد إنشاء أول مالك.', setupSubmit: 'إنشاء حساب المالك', settingUp: 'جارٍ إنشاء الحساب…',
+    dashboardEyebrow: 'عمليات الشبكة', dashboardTitle: 'الحقيقة بنظرة واحدة.', dashboardCopy: 'فعّل البحث المباشر واعتمد الشركات وراقب رحلة الطلب حتى الحجز.', generated: 'آخر تحديث',
+    businesses: 'تحقق الشركات', requests: 'طلبات عروض السعر', connectors: 'حالة التشغيل', audit: 'آخر العمليات',
     searchesToday: 'عمليات البحث اليوم', quoteRequests: 'طلبات السعر', quotesSubmitted: 'العروض المرسلة', bookings: 'الحجوزات',
     noBusinesses: 'لم تسجل أي شركة بعد.', noRequests: 'لا توجد طلبات بعد.', noAudit: 'لا توجد أحداث تشغيلية بعد.',
-    verify: 'اعتماد', suspend: 'إيقاف', setPending: 'قيد المراجعة', statusUpdated: 'تم تحديث حالة الشركة.', refresh: 'تحديث',
-    storagePostgres: 'التخزين الدائم في PostgreSQL مفعّل.', storageLocal: 'التخزين المحلي مفعّل؛ أضف SUPABASE_URL وSUPABASE_SECRET_KEY للاستخدام العام.'
+    verify: 'اعتماد', suspend: 'إيقاف', setPending: 'قيد المراجعة', statusUpdated: 'تم تحديث حالة الشركة.',
+    storagePostgres: 'التخزين الدائم في Supabase PostgreSQL مفعّل.', storageLocal: 'تخزين JSON الدائم مفعّل على هذا الخادم. أضف قرصاً أو Supabase قبل تشغيل أكثر من نسخة.',
+    saved: 'تم حفظ إعدادات الموصلات.', testing: 'جارٍ الاختبار…', testPassed: 'نجح الاتصال.', testFailed: 'فشل الاتصال.',
+    configured: 'مُعدّ', setupRequired: 'يحتاج إعداداً', environment: 'متغيرات البيئة', vault: 'خزنة الإدارة', notTested: 'لم يتم الاختبار بعد.'
   }
 };
 
@@ -28,7 +34,8 @@ const state = {
   config: null,
   overview: null,
   businesses: [],
-  requests: []
+  requests: [],
+  connectorSettings: null
 };
 function t(key) { return copy[state.locale][key] ?? copy.en[key] ?? key; }
 
@@ -39,6 +46,9 @@ function translateStatic() {
   el('auth-title').textContent = t('authTitle');
   el('auth-copy').textContent = t('authCopy');
   el('login-submit').textContent = t('signIn');
+  el('setup-notice-title').textContent = t('setupTitle');
+  el('setup-notice-copy').textContent = t('setupCopy');
+  el('setup-submit').textContent = t('setupSubmit');
   el('logout-button').innerHTML = `${icon('logout', 15)} ${t('logout')}`;
   el('dashboard-eyebrow').textContent = t('dashboardEyebrow');
   el('dashboard-title').textContent = t('dashboardTitle');
@@ -55,6 +65,9 @@ function showAuth() {
   el('auth-view').classList.remove('hidden');
   el('dashboard-view').classList.add('hidden');
   el('logout-button').classList.add('hidden');
+  const setupRequired = Boolean(state.config?.setupRequired);
+  el('setup-form').classList.toggle('hidden', !setupRequired);
+  el('login-form').classList.toggle('hidden', setupRequired);
 }
 function showDashboard() {
   el('auth-view').classList.add('hidden');
@@ -75,7 +88,37 @@ function renderMetrics() {
 
 function renderConnectors() {
   const connectors = state.overview?.connectors || state.config?.connectors || [];
-  el('connector-grid').innerHTML = connectors.map((connector) => `<article class="connector-card" data-mode="${escapeHtml(connector.mode)}"><span class="connector-card__dot"></span><div><strong>${escapeHtml(connector.name)}</strong><p>${escapeHtml(connector.mode)} · ${escapeHtml(connector.description || '')}</p></div></article>`).join('');
+  el('connector-grid').innerHTML = connectors.map((connector) => `<article class="connector-card" data-mode="${escapeHtml(connector.mode)}"><span class="connector-card__dot"></span><div><strong>${escapeHtml(connector.name)}</strong><p>${escapeHtml(connector.status || connector.mode)} · ${escapeHtml(connector.description || '')}</p></div></article>`).join('');
+}
+
+function providerStatus(provider) {
+  const item = state.connectorSettings?.[provider];
+  if (!item) return;
+  const status = el(`${provider}-status`);
+  if (status) {
+    status.textContent = item.configured ? t('configured') : t('setupRequired');
+    status.classList.toggle('integration-state--live', item.configured);
+  }
+  const input = el(`${provider}-key`);
+  if (input) input.placeholder = item.keyHint ? `Stored securely: ${item.keyHint}` : input.dataset.defaultPlaceholder || input.placeholder;
+  const output = el(`${provider}-test`);
+  if (output) {
+    const test = item.lastTest;
+    output.textContent = test
+      ? `${test.ok ? '✓' : '×'} ${test.message} · ${formatDate(test.testedAt, state.locale)}`
+      : t('notTested');
+    output.dataset.ok = test ? String(Boolean(test.ok)) : '';
+  }
+}
+
+function renderConnectorSettings() {
+  if (!state.connectorSettings) return;
+  const openai = state.connectorSettings.openai || {};
+  el('openai-model').value = openai.model || 'gpt-5.6-luna';
+  el('openai-deep-model').value = openai.deepModel || 'gpt-5.6-terra';
+  el('email-from').value = state.connectorSettings.resend?.emailFrom || '';
+  el('auto-verify-businesses').checked = Boolean(state.connectorSettings.marketplace?.autoVerifyBusinesses);
+  ['openai', 'google', 'brave', 'resend'].forEach(providerStatus);
 }
 
 function renderBusinesses() {
@@ -119,6 +162,7 @@ function render() {
   el('storage-copy').textContent = state.config?.storageMode === 'supabase-postgres' ? t('storagePostgres') : t('storageLocal');
   renderMetrics();
   renderConnectors();
+  renderConnectorSettings();
   renderBusinesses();
   renderRequests();
   renderAudit();
@@ -127,14 +171,16 @@ function render() {
 async function loadAdmin({ quiet = false } = {}) {
   if (!state.token) return showAuth();
   try {
-    const [overview, businesses, requests] = await Promise.all([
+    const [overview, businesses, requests, connectorResponse] = await Promise.all([
       api('/api/admin/overview', { token: state.token }),
       api('/api/admin/businesses', { token: state.token }),
-      api('/api/admin/requests', { token: state.token })
+      api('/api/admin/requests', { token: state.token }),
+      api('/api/admin/connectors', { token: state.token })
     ]);
     state.overview = overview;
     state.businesses = businesses.businesses || [];
     state.requests = requests.requests || [];
+    state.connectorSettings = connectorResponse.connectors || null;
     showDashboard();
     render();
   } catch (error) {
@@ -160,6 +206,76 @@ async function login(event) {
   } finally { setBusy(button, false); }
 }
 
+async function setupOwner(event) {
+  event.preventDefault();
+  const button = el('setup-submit');
+  setBusy(button, true, t('settingUp'));
+  try {
+    const output = await api('/api/admin/setup', {
+      method: 'POST',
+      body: { name: el('setup-name').value, email: el('setup-email').value, password: el('setup-password').value }
+    });
+    state.token = output.token;
+    sessionStorage.setItem('nayl-admin-token', state.token);
+    state.config = await api('/api/config');
+    await loadAdmin();
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally { setBusy(button, false); }
+}
+
+function connectorPayload() {
+  return {
+    openai: {
+      apiKey: el('openai-key').value.trim(),
+      clearApiKey: el('openai-clear').checked,
+      model: el('openai-model').value.trim(),
+      deepModel: el('openai-deep-model').value.trim()
+    },
+    google: { apiKey: el('google-key').value.trim(), clearApiKey: el('google-clear').checked },
+    brave: { apiKey: el('brave-key').value.trim(), clearApiKey: el('brave-clear').checked },
+    resend: { apiKey: el('resend-key').value.trim(), clearApiKey: el('resend-clear').checked, emailFrom: el('email-from').value.trim() },
+    marketplace: { autoVerifyBusinesses: el('auto-verify-businesses').checked }
+  };
+}
+
+async function saveConnectors(event, { silent = false } = {}) {
+  if (event) event.preventDefault();
+  const button = el('save-connectors');
+  setBusy(button, true, 'Saving…');
+  try {
+    const output = await api('/api/admin/connectors', { token: state.token, method: 'PUT', body: connectorPayload() });
+    state.connectorSettings = output.connectors;
+    ['openai', 'google', 'brave', 'resend'].forEach((provider) => {
+      el(`${provider}-key`).value = '';
+      el(`${provider}-clear`).checked = false;
+    });
+    renderConnectorSettings();
+    if (!silent) showToast(t('saved'));
+    return true;
+  } catch (error) {
+    showToast(error.message, 'error');
+    return false;
+  } finally { setBusy(button, false); }
+}
+
+async function testProvider(provider, button) {
+  const saved = await saveConnectors(null, { silent: true });
+  if (!saved) return;
+  setBusy(button, true, t('testing'));
+  try {
+    const output = await api(`/api/admin/connectors/${encodeURIComponent(provider)}/test`, { token: state.token, method: 'POST', body: {} });
+    if (output.result?.ok) showToast(`${t('testPassed')} ${output.result.message}`);
+    else showToast(`${t('testFailed')} ${output.result?.message || ''}`, 'error');
+    const connectors = await api('/api/admin/connectors', { token: state.token });
+    state.connectorSettings = connectors.connectors;
+    renderConnectorSettings();
+    await loadAdmin({ quiet: true });
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally { setBusy(button, false); }
+}
+
 async function setBusinessStatus(id, status, button) {
   setBusy(button, true, status);
   try {
@@ -174,8 +290,14 @@ async function setBusinessStatus(id, status, button) {
 
 async function init() {
   setLocale(state.locale);
+  ['openai', 'google', 'brave', 'resend'].forEach((provider) => {
+    const input = el(`${provider}-key`);
+    if (input) input.dataset.defaultPlaceholder = input.placeholder;
+  });
   el('refresh-admin').innerHTML = icon('refresh');
   el('login-form').addEventListener('submit', login);
+  el('setup-form').addEventListener('submit', setupOwner);
+  el('connector-settings-form').addEventListener('submit', saveConnectors);
   el('refresh-admin').addEventListener('click', () => loadAdmin());
   el('language-button').addEventListener('click', () => {
     state.locale = state.locale === 'en' ? 'ar' : 'en';
@@ -188,8 +310,10 @@ async function init() {
     showAuth();
   });
   document.addEventListener('click', (event) => {
-    const target = event.target.closest('[data-action="business-status"]');
-    if (target) setBusinessStatus(target.dataset.id, target.dataset.status, target);
+    const statusTarget = event.target.closest('[data-action="business-status"]');
+    if (statusTarget) setBusinessStatus(statusTarget.dataset.id, statusTarget.dataset.status, statusTarget);
+    const testTarget = event.target.closest('[data-test-provider]');
+    if (testTarget) testProvider(testTarget.dataset.testProvider, testTarget);
   });
 
   try {

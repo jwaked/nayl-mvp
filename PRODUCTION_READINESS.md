@@ -1,97 +1,100 @@
 # Production Readiness
 
-## Implemented now
+## Implemented and working
 
-### Product
+### Product and workflow
 
-- Responsive English/Arabic consumer experience
-- Dedicated `/business` and `/admin` portals
+- Separate consumer `/`, business `/business`, and owner `/admin` portals
+- Consumer registration, sign-in, profile restoration, request history, quote comparison, and booking
+- Business registration, sign-in, profile management, matching, quote creation/update, KPIs, and won-contact release
+- First-run owner setup, sign-in, business controls, connector configuration/tests, KPIs, and audit visibility
 - Natural-language GCC intent extraction with deterministic fallback
-- Unified, attributed, normalized live-source results
-- Consumer request history and quote comparison
-- Business onboarding, profile, matching, quoting, and KPIs
-- Admin verification, connector status, marketplace KPIs, request and audit visibility
+- Unified source-attributed result cards
+- Full request → opportunity → quote → acceptance → confirmed booking transition
 
-### Transaction integrity
+### Live integration framework
 
-- Server-side validation of market, city, category, currency, amount, expiry, URL, and ownership
-- Atomic request/quote/booking mutations within the active store
-- One quote per business per request, updated on resubmission
-- Expired quotes cannot be accepted
-- Inactive/suspended providers cannot win bookings
-- Competing quotes are declined on booking
-- Contact data is hidden until a business wins
+- NAYL Marketplace active with no credential
+- OpenAI Responses API structured intent adapter
+- OpenAI Responses API web-search adapter with source verification
+- Google Places Text Search (New) adapter
+- Brave Search API adapter
+- Resend transactional email adapter
+- Dynamic activation from protected admin settings without redeploy
+- Per-provider test operation and persisted test status
+- Explicit `setup-required`, `live`, and `error` states
 
 ### Security baseline
 
-- Password hashing with scrypt and random salts
-- Signed, expiring role tokens
-- Constant-time credential/signature comparisons where relevant
-- Authorization checks on every private API route
-- Content Security Policy and standard browser security headers
-- Request body limits and input length limits
-- IP-based rate limit
-- server-only connector and database secrets
-- RLS enabled on the Supabase state table; browser roles revoked
-- no mock provider records or embedded API credentials
+- scrypt password hashing and unique salts
+- signed and expiring role sessions
+- first-owner setup lock
+- role and ownership checks on private routes
+- AES-256-GCM encryption of stored connector keys
+- no secret return through public/admin read APIs
+- CSP and standard browser security headers
+- request body and field limits
+- per-IP rate limiting
+- audit events for privileged and transactional actions
+- Supabase state-table browser access revoked in the supplied SQL
+- no seeded fake providers or embedded private API credentials
 
 ### Reliability baseline
 
-- Connector timeouts and failure isolation
-- Atomic local writes
-- optimistic revision conflicts and retries for Supabase state
-- health endpoint and request IDs
-- structured server logs
-- graceful shutdown
-- automated end-to-end tests
+- connector timeouts and failure isolation
+- atomic local writes
+- Supabase optimistic-revision retries
+- health endpoint, request IDs, structured logs, and graceful shutdown
+- automated API, connector-contract, auth, vault, and marketplace lifecycle tests
 
-## Required before an unrestricted public launch
+## Required third-party owner inputs
 
-### Identity and access
+OpenAI, Google Places, Brave Search, and Resend cannot be pre-authorized in a redistributable package. The application owner must supply credentials linked to their own provider account, accepted terms, quotas, and billing. These can be added after deployment through `/admin` and become active immediately.
 
-- verified consumer email/phone
-- managed identity provider or hardened first-party identity service
-- password reset, MFA, session revocation, device/session inventory
-- organization membership and granular business/admin RBAC
-- privileged-action step-up authentication
+The code path is implemented and mocked contract tests pass, but authenticated live calls were not executed during packaging because no user-owned credentials were supplied.
+
+## Required before unrestricted public launch
+
+### Identity
+
+- verified consumer and business email/phone
+- password recovery
+- MFA and step-up authentication for administrators
+- token revocation, session inventory, and suspicious-login controls
+- organization membership and granular RBAC
 
 ### Provider trust
 
-- formal KYB workflow
-- trade-license and regulated-profession validation
-- beneficial-owner and sanctions checks where legally required
+- formal KYB and document workflows
+- trade-license and regulated-profession checks
+- beneficial-owner/sanctions controls where required
 - document expiry and periodic reverification
-- branch and staff access management
+- branch and staff access administration
 
-### Data architecture and operations
+### Data and operations
 
 - normalized PostgreSQL schema with constraints and migrations
-- durable queue/outbox and idempotency
-- scheduled backups and restoration drills
+- durable queue/outbox and idempotency keys
+- scheduled backups and restore drills
 - distributed rate limiting
-- observability, error tracking, SLOs, alerts, and on-call
-- secret vault, rotation, egress restrictions, and connector quotas
-- WAF/bot controls and penetration testing
+- error tracking, metrics, SLOs, alerts, and on-call procedures
+- dedicated secrets manager, key rotation, connector quotas, and egress controls
+- WAF/bot controls and independent security testing
 
 ### Commerce
 
 - provider commercial agreements
-- explicit booking/fulfillment state machine
-- payment service and double-entry ledger
-- PCI-scoped design through hosted payment components
-- invoices/tax handling
-- refunds, cancellations, disputes, and chargebacks
-- reconciliation and finance operations
+- fulfillment state machine
+- payment orchestration and double-entry ledger
+- invoices and country-specific tax treatment
+- cancellation, refund, dispute, chargeback, and reconciliation operations
 
-### Safety, privacy, and legal
+### Privacy, safety, and legal
 
-- terms, privacy notice, consent records, and cookie approach
-- data inventory, classification, retention, deletion, and export
-- incident response and breach notification procedures
-- moderation and marketplace abuse controls
-- fraud/risk rules and manual review tools
-- consumer-protection, competition/ranking, advertising, licensing, and sector review for every country/category
-
-## Credential verification status
-
-The code paths and request schemas for OpenAI, Google Places, Brave Search, Resend, and Supabase are implemented. Automated tests validate NAYL's own workflow without network dependencies. Live third-party authentication was not executed during packaging because no user API keys were supplied. The application reports missing credentials as `not-configured` and reports runtime API errors instead of displaying fabricated results.
+- terms and privacy notice
+- consent records and data-subject workflows
+- data inventory, classification, retention, export, and deletion
+- incident response and breach-notification procedures
+- marketplace moderation and abuse controls
+- fraud/risk rules and manual review
+- country-by-country consumer protection, ranking/advertising, licensing, data, and regulated-sector review

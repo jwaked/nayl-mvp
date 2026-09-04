@@ -1,4 +1,4 @@
-import { loadConfig } from './config.js';
+import { loadConfig } from './backend-config.js';
 import { createNaylApp } from './backend-app.js';
 
 const config = loadConfig();
@@ -11,7 +11,7 @@ server.listen(config.port, config.host, () => {
   console.log(`Admin: ${config.appBaseUrl}/admin`);
   console.log(`Storage: ${store.mode}`);
   if (config.sessionSecretWasGenerated) {
-    console.warn('SESSION_SECRET was not set. A temporary secret was generated; set SESSION_SECRET before production use.');
+    console.warn(`SESSION_SECRET was generated using ${config.sessionSecretSource}. Render Blueprint deployments generate and retain this value automatically.`);
   }
 });
 

@@ -5,10 +5,8 @@ services:
       HOST: 0.0.0.0
       PORT: 8787
       NODE_ENV: production
-      SESSION_SECRET: change-this-long-secret
-      ADMIN_EMAIL: admin@nayl.local
-      ADMIN_PASSWORD: change-this-password1
-      AUTO_VERIFY_BUSINESSES: "false"
+      SESSION_SECRET: replace-this-with-a-long-random-secret-before-sharing
+      AUTO_VERIFY_BUSINESSES: "true"
     ports:
       - "8787:8787"
     volumes:

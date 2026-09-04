@@ -1,40 +1,24 @@
 # NAYL API
 
-Base path: `/api`
-
-All responses are JSON. Errors have this shape:
-
-```json
-{
-  "error": {
-    "code": "REQUEST_ERROR",
-    "message": "Human-readable message",
-    "requestId": "uuid"
-  }
-}
-```
-
-Authenticated routes use:
+Base path: `/api`. All responses are JSON. Authenticated routes use:
 
 ```http
 Authorization: Bearer <signed-session-token>
 ```
 
-Tokens are role-specific; a consumer token cannot access business or admin endpoints.
+Tokens are role-specific. Consumer, business, and admin tokens cannot cross access boundaries.
 
-## Public and configuration
+## Health and configuration
 
 ### `GET /api/health`
 
-Health and active storage mode.
+Returns service version, timestamp, and storage mode.
 
 ### `GET /api/config`
 
-Returns GCC markets, categories, connector states, defaults, and storage mode. No secrets are returned.
+Returns GCC markets, categories, public connector states, owner-setup state, defaults, and storage mode. No secret or password material is returned.
 
 ### `POST /api/search`
-
-Request:
 
 ```json
 {
@@ -42,31 +26,43 @@ Request:
   "market": "AE",
   "city": "Dubai",
   "locale": "en",
-  "deep": false
+  "deep": true
 }
 ```
 
-The response includes:
+Configured result connectors run concurrently and fail independently. The response includes resolved intent, normalized ranked results, source attribution, connector execution state, and Deep Search sources when requested.
 
-- resolved intent
-- normalized and ranked results
-- source attribution and connector mode on every result
-- per-connector execution status
-- deep-search summary and source links when enabled
+## Consumer accounts
 
-Configured result connectors run concurrently and fail independently.
+### `POST /api/consumer/register`
 
-## Consumer
+```json
+{
+  "name": "Sara Ahmed",
+  "email": "sara@example.com",
+  "password": "StrongPassword1",
+  "phone": "+971500000000",
+  "locale": "en"
+}
+```
 
-### `POST /api/consumer/session`
+### `POST /api/consumer/login`
 
-Creates an anonymous consumer identity and a signed 180-day token. The browser stores it locally so only that browser can read its requests.
+```json
+{ "email": "sara@example.com", "password": "StrongPassword1" }
+```
 
-### `GET /api/consumer/requests`
+### `GET /api/consumer/me`
 
 Role: consumer.
 
-Lists the caller's persisted requests, quotes, booking references, and statuses.
+### `PUT /api/consumer/me`
+
+Role: consumer. Updates name, phone, and locale.
+
+### `GET /api/consumer/requests`
+
+Role: consumer. Lists the caller's requests, quotes, and booking state.
 
 ### `POST /api/consumer/requests`
 
@@ -92,36 +88,24 @@ Role: consumer.
     "sourceType": "marketplace",
     "title": "Provider name",
     "url": "https://provider.example/",
-    "meta": { "businessId": "business-..." }
+    "meta": { "businessId": "biz-..." }
   }
 }
 ```
 
-The server validates the market, city, category, contact, and optional source. A client-supplied preferred business is accepted only when that business still exists, is verified, is active, and matches the request.
-
 ### `POST /api/consumer/requests/:requestId/accept`
-
-Role: consumer owner.
 
 ```json
 { "quoteId": "quote-..." }
 ```
 
-Atomically:
-
-- verifies ownership and quote validity
-- verifies the provider is still active
-- marks the selected quote accepted
-- marks competitors declined
-- marks the request booked
-- creates a confirmed booking
-- emits audit and optional email notifications
+Atomically accepts the selected quote, declines competitors, books the request, creates a confirmed booking, and reveals contact details to the winning provider.
 
 ### `POST /api/consumer/requests/:requestId/cancel`
 
-Role: consumer owner. Cancels an open/quoted request; booked requests cannot be cancelled through this endpoint.
+Cancels an open or quoted request.
 
-## Business
+## Business accounts
 
 ### `POST /api/business/register`
 
@@ -141,34 +125,19 @@ Role: consumer owner. Cancels an open/quoted request; booked requests cannot be 
 }
 ```
 
-Registration returns a business token. New businesses are `pending` unless the server explicitly enables auto-verification. Pending accounts can edit their profile but cannot access opportunities or appear in search.
+Registration returns a business token. The default direct-pilot policy verifies new accounts immediately. The owner can disable automatic verification at `/admin`; after that, new accounts remain pending.
 
 ### `POST /api/business/login`
 
-```json
-{
-  "email": "team@provider.com",
-  "password": "StrongPassword1"
-}
-```
-
 ### `GET /api/business/me`
-
-Role: business. Returns the caller's profile without password material.
 
 ### `PUT /api/business/me`
 
-Role: business. Updates approved profile fields, categories, service areas, price, and lead acceptance.
-
 ### `GET /api/business/opportunities`
 
-Role: verified business.
-
-Returns requests matching the provider's market, category, and service area. Customer contact is `null` until the provider wins the booking.
+Role: verified business. Returns matching requests. Consumer contact is hidden until the provider wins.
 
 ### `POST /api/business/opportunities/:requestId/quotes`
-
-Role: verified matching business.
 
 ```json
 {
@@ -180,64 +149,113 @@ Role: verified matching business.
 }
 ```
 
-Submitting again updates that business's existing quote. Currency must equal the request currency; expiry must be in the future.
+Submitting again updates the provider's existing quote.
 
 ### `GET /api/business/kpis`
 
-Role: business. Returns opportunities, open opportunities, quotes, wins, win rate, and quoted value.
+## Owner and operations
 
-## Admin and Operations
+### `GET /api/admin/status`
+
+Public first-launch status. Returns `setupRequired` without exposing owner data.
+
+### `POST /api/admin/setup`
+
+Available only while no stored or environment administrator exists.
+
+```json
+{
+  "name": "NAYL Owner",
+  "email": "owner@example.com",
+  "password": "StrongPassword1"
+}
+```
 
 ### `POST /api/admin/login`
 
-Uses `ADMIN_EMAIL` and `ADMIN_PASSWORD` configured on the server. The returned admin token lasts 12 hours.
+### `GET /api/admin/me`
 
 ### `GET /api/admin/overview`
 
-Role: admin. Returns search, marketplace, booking, GMV, connector, market rollout, and audit data.
-
 ### `GET /api/admin/businesses`
 
-Role: admin. Lists registered businesses and verification state.
+### `GET /api/admin/requests`
+
+### `GET /api/admin/consumers`
 
 ### `PATCH /api/admin/businesses/:businessId/status`
-
-Role: admin.
 
 ```json
 { "status": "verified" }
 ```
 
-Allowed states: `pending`, `verified`, `suspended`.
+Allowed values: `pending`, `verified`, `suspended`.
 
-### `GET /api/admin/requests`
+## Protected live-connector management
 
-Role: admin. Lists request operations data, including contact details. Restrict admin access accordingly.
+### `GET /api/admin/connectors`
 
-## Request status lifecycle
+Returns masked configuration, provider source, current models, and last test results. Secret values are never returned.
+
+### `PUT /api/admin/connectors`
+
+```json
+{
+  "openai": {
+    "apiKey": "sk-...",
+    "model": "gpt-5.6-luna",
+    "deepModel": "gpt-5.6-terra",
+    "clearApiKey": false
+  },
+  "google": { "apiKey": "...", "clearApiKey": false },
+  "brave": { "apiKey": "...", "clearApiKey": false },
+  "resend": {
+    "apiKey": "re_...",
+    "emailFrom": "NAYL <quotes@example.com>",
+    "clearApiKey": false
+  },
+  "marketplace": { "autoVerifyBusinesses": true }
+}
+```
+
+Non-empty secrets are encrypted before storage. Blank secret fields preserve the existing value. Set `clearApiKey` to remove a stored secret.
+
+### `POST /api/admin/connectors/:provider/test`
+
+Allowed providers: `openai`, `google`, `brave`, `resend`.
+
+The response always returns a structured test result:
+
+```json
+{
+  "provider": "google",
+  "result": {
+    "ok": true,
+    "message": "Google Places credentials are valid and Text Search (New) is reachable.",
+    "latencyMs": 284,
+    "metadata": { "resultCount": 1 }
+  }
+}
+```
+
+## State lifecycles
 
 ```text
-open
-  ├── quote submitted → quoted
-  │                      ├── consumer accepts → booked
-  │                      └── consumer cancels → cancelled
-  └── consumer cancels → cancelled
+request: open → quoted → booked
+                   └→ cancelled
+quote:   submitted → accepted
+                    └→ declined
+booking: confirmed
 ```
 
-Quote status lifecycle:
+## Security controls in this build
 
-```text
-submitted → accepted
-          └→ declined
-```
-
-## Rate limits and validation
-
-API calls are subject to an in-process IP rate limit configured through:
-
-```dotenv
-RATE_LIMIT_WINDOW_MS=60000
-RATE_LIMIT_MAX=160
-```
-
-Inputs are length-limited and validated. JSON bodies are limited to 512 KB. For a multi-instance launch, replace the in-memory limiter with a distributed store and introduce idempotency keys for transactional writes.
+- scrypt password hashing with unique salts
+- signed role-specific sessions
+- first-owner setup lock
+- AES-256-GCM connector-secret encryption
+- same-origin browser architecture
+- security headers and restrictive CSP
+- input validation and 512 KB JSON limit
+- per-IP in-process rate limiting
+- audit events for owner, connector, provider, request, quote, and booking operations

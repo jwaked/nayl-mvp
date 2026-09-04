@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { createStore } from './lib-store.js';
-import { createSessionToken, requireRole } from './lib-auth.js';
+import { createStore } from './backend-lib-store.js';
+import { createSessionToken, requireRole } from './backend-lib-auth.js';
 import {
   HttpError,
   applySecurityHeaders,
@@ -20,16 +20,18 @@ import {
   sendError,
   sendJson,
   serveStatic
-} from './lib-http.js';
-import { createMarketplaceConnector } from './connector-marketplace.js';
-import { createBraveConnector } from './connector-brave.js';
-import { createGooglePlacesConnector } from './connector-google-places.js';
-import { createOpenAiIntelligence } from './connector-openai.js';
-import { createEmailConnector } from './connector-email.js';
-import { SearchOrchestrator } from './search-orchestrator.js';
-import { MarketplaceService } from './service-marketplace.js';
-import { BusinessService } from './service-business.js';
-import { AdminService } from './service-admin.js';
+} from './backend-lib-http.js';
+import { createMarketplaceConnector } from './backend-connector-marketplace.js';
+import { createBraveConnector } from './backend-connector-brave.js';
+import { createGooglePlacesConnector } from './backend-connector-google-places.js';
+import { createOpenAiIntelligence } from './backend-connector-openai.js';
+import { createManagedEmailConnector } from './backend-connector-email.js';
+import { SearchOrchestrator } from './backend-search-orchestrator.js';
+import { MarketplaceService } from './backend-service-marketplace.js';
+import { BusinessService } from './backend-service-business.js';
+import { ConsumerService } from './backend-service-consumer.js';
+import { AdminService } from './backend-service-admin.js';
+import { ConnectorSettingsService } from './backend-service-settings.js';
 
 function cleanLocale(value) {
   return value === 'ar' ? 'ar' : 'en';
@@ -83,52 +85,63 @@ export async function createNaylApp(config) {
   const store = createStore(config);
   await store.init();
 
-  const openAi = createOpenAiIntelligence({
-    apiKey: config.openaiApiKey,
-    model: config.openaiModel,
-    deepModel: config.openaiDeepModel,
-    timeoutMs: config.connectorTimeoutMs,
-    deepTimeoutMs: config.deepSearchTimeoutMs
-  });
-  const resultConnectors = [
-    createMarketplaceConnector({ store }),
-    createGooglePlacesConnector({ apiKey: config.googleMapsApiKey, timeoutMs: config.connectorTimeoutMs }),
-    createBraveConnector({ apiKey: config.braveSearchApiKey, timeoutMs: config.connectorTimeoutMs })
-  ];
-  const email = createEmailConnector({
-    apiKey: config.resendApiKey,
-    from: config.emailFrom,
+  const settingsService = new ConnectorSettingsService({ store, sessionSecret: config.sessionSecret, config });
+  const marketplaceConnector = createMarketplaceConnector({ store });
+  const getSearchRuntime = async () => {
+    const runtime = await settingsService.runtime();
+    return {
+      openAi: createOpenAiIntelligence({
+        apiKey: runtime.openai.apiKey,
+        model: runtime.openai.model,
+        deepModel: runtime.openai.deepModel,
+        timeoutMs: config.connectorTimeoutMs,
+        deepTimeoutMs: config.deepSearchTimeoutMs
+      }),
+      connectors: [
+        marketplaceConnector,
+        createGooglePlacesConnector({ apiKey: runtime.google.apiKey, timeoutMs: config.connectorTimeoutMs }),
+        createBraveConnector({ apiKey: runtime.brave.apiKey, timeoutMs: config.connectorTimeoutMs })
+      ]
+    };
+  };
+  const email = createManagedEmailConnector({
+    settingsService,
     appBaseUrl: config.appBaseUrl,
     timeoutMs: config.connectorTimeoutMs
   });
   const orchestrator = new SearchOrchestrator({
     store,
-    connectors: resultConnectors,
-    openAi,
+    getRuntime: getSearchRuntime,
     defaultMarket: config.defaultMarket,
     defaultCity: config.defaultCity
   });
-  const allConnectorDescriptors = () => [
-    ...orchestrator.connectorDescriptors(),
-    email.descriptor,
+  const allConnectorDescriptors = async () => [
+    ...(await orchestrator.connectorDescriptors()),
+    await email.descriptor(),
     {
       id: 'persistent-storage',
       name: store.mode === 'supabase-postgres' ? 'Supabase PostgreSQL Storage' : 'Local JSON Storage',
       sourceType: 'storage',
-      mode: store.mode === 'supabase-postgres' ? 'live' : 'local-only',
+      mode: store.mode === 'supabase-postgres' ? 'live' : 'local-persistent',
       configured: true,
-      status: store.mode === 'supabase-postgres' ? 'ready' : 'local-only',
+      status: store.mode === 'supabase-postgres' ? 'ready' : 'ready',
       description: store.mode === 'supabase-postgres'
         ? 'Persistent state is stored in Supabase PostgreSQL with optimistic transactions.'
-        : 'Local JSON state is active. Configure SUPABASE_URL and SUPABASE_SECRET_KEY before public use.'
+        : 'Persistent JSON storage is active on this server. Use a persistent disk or Supabase for multi-instance production.'
     }
   ];
 
   const marketplaceService = new MarketplaceService({ store, notification: email });
+  const consumerService = new ConsumerService({
+    store,
+    sessionSecret: config.sessionSecret,
+    notification: email,
+    appBaseUrl: config.appBaseUrl
+  });
   const businessService = new BusinessService({
     store,
     sessionSecret: config.sessionSecret,
-    autoVerifyBusinesses: config.autoVerifyBusinesses,
+    getAutoVerifyBusinesses: async () => (await settingsService.runtime()).marketplace.autoVerifyBusinesses,
     notification: email,
     appBaseUrl: config.appBaseUrl,
     adminEmail: config.adminEmail
@@ -171,7 +184,7 @@ export async function createNaylApp(config) {
         sendJson(res, 200, {
           status: 'ok',
           service: 'nayl-production-v1',
-          version: '1.0.0',
+          version: '1.1.0',
           storage: store.mode,
           timestamp: new Date().toISOString(),
           requestId
@@ -183,12 +196,12 @@ export async function createNaylApp(config) {
         const data = await store.snapshot();
         sendJson(res, 200, {
           product: 'NAYL',
-          version: '1.0.0',
+          version: '1.1.0',
           defaults: { market: config.defaultMarket, city: config.defaultCity },
           markets: data.markets,
           categories: data.categories.map(({ id, label, labelAr }) => ({ id, label, labelAr })),
-          connectors: allConnectorDescriptors(),
-          adminConfigured: Boolean(config.adminEmail && config.adminPassword),
+          connectors: await allConnectorDescriptors(),
+          ...(await adminService.status()),
           storageMode: store.mode,
           requestId
         });
@@ -208,10 +221,54 @@ export async function createNaylApp(config) {
         return;
       }
 
+      if (req.method === 'POST' && pathname === '/api/consumer/register') {
+        const body = await readJsonBody(req);
+        const output = await consumerService.register({
+          name: requireString(body.name, 'name', { min: 2, max: 120 }),
+          email: requireEmail(body.email),
+          password: password(body.password),
+          phone: optionalString(body.phone, { max: 60 }) || '',
+          locale: cleanLocale(body.locale)
+        });
+        sendJson(res, 201, { ...output, requestId });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/api/consumer/login') {
+        const body = await readJsonBody(req);
+        const output = await consumerService.login(
+          requireEmail(body.email),
+          requireString(body.password, 'password', { min: 1, max: 200 })
+        );
+        sendJson(res, 200, { ...output, requestId });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/api/consumer/me') {
+        const identity = requireRole(req, config.sessionSecret, 'consumer');
+        const consumer = await consumerService.getProfile(identity.consumerId);
+        sendJson(res, 200, { consumer, requestId });
+        return;
+      }
+
+      if (req.method === 'PUT' && pathname === '/api/consumer/me') {
+        const identity = requireRole(req, config.sessionSecret, 'consumer');
+        const body = await readJsonBody(req);
+        const consumer = await consumerService.updateProfile(identity.consumerId, {
+          name: body.name === undefined ? undefined : requireString(body.name, 'name', { min: 2, max: 120 }),
+          phone: body.phone === undefined ? undefined : optionalString(body.phone, { max: 60 }) || '',
+          locale: body.locale === undefined ? undefined : cleanLocale(body.locale)
+        });
+        sendJson(res, 200, { consumer, requestId });
+        return;
+      }
+
+      // Backward-compatible guest session for API clients. The web interface
+      // uses registered consumer accounts before creating quote requests.
       if (req.method === 'POST' && pathname === '/api/consumer/session') {
-        const consumerId = `consumer-${randomUUID()}`;
-        const token = createSessionToken({ role: 'consumer', consumerId }, config.sessionSecret, 60 * 60 * 24 * 180);
-        sendJson(res, 201, { token, consumerId, requestId });
+        const consumerId = `guest-${randomUUID()}`;
+        const token = createSessionToken({ role: 'consumer', consumerId, guest: true }, config.sessionSecret, 60 * 60 * 24);
+        sendJson(res, 201, { token, consumerId, guest: true, requestId });
         return;
       }
 
@@ -348,10 +405,57 @@ export async function createNaylApp(config) {
         return;
       }
 
+      if (req.method === 'GET' && pathname === '/api/admin/status') {
+        const status = await adminService.status();
+        sendJson(res, 200, { ...status, requestId });
+        return;
+      }
+
+      if (req.method === 'POST' && pathname === '/api/admin/setup') {
+        const body = await readJsonBody(req);
+        const output = await adminService.setup({
+          name: requireString(body.name, 'name', { min: 2, max: 120 }),
+          email: requireEmail(body.email),
+          password: password(body.password)
+        });
+        sendJson(res, 201, { ...output, requestId });
+        return;
+      }
+
       if (req.method === 'POST' && pathname === '/api/admin/login') {
         const body = await readJsonBody(req);
-        const output = adminService.login(requireEmail(body.email), requireString(body.password, 'password', { min: 1, max: 200 }));
+        const output = await adminService.login(requireEmail(body.email), requireString(body.password, 'password', { min: 1, max: 200 }));
         sendJson(res, 200, { ...output, requestId });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/api/admin/me') {
+        const identity = requireRole(req, config.sessionSecret, 'admin');
+        const admin = await adminService.getProfile(identity);
+        sendJson(res, 200, { admin, requestId });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/api/admin/connectors') {
+        requireRole(req, config.sessionSecret, 'admin');
+        const connectors = await settingsService.publicState();
+        sendJson(res, 200, { connectors, requestId });
+        return;
+      }
+
+      if (req.method === 'PUT' && pathname === '/api/admin/connectors') {
+        const identity = requireRole(req, config.sessionSecret, 'admin');
+        const body = await readJsonBody(req);
+        const connectors = await settingsService.update(body, identity.email || identity.adminId || 'admin');
+        sendJson(res, 200, { connectors, requestId });
+        return;
+      }
+
+      params = routeMatch(pathname, /^\/api\/admin\/connectors\/([^/]+)\/test$/);
+      if (req.method === 'POST' && params) {
+        const identity = requireRole(req, config.sessionSecret, 'admin');
+        const result = await settingsService.test(params[0], identity.email || identity.adminId || 'admin');
+        sendJson(res, 200, { provider: params[0], result, requestId });
         return;
       }
 
@@ -373,6 +477,13 @@ export async function createNaylApp(config) {
         requireRole(req, config.sessionSecret, 'admin');
         const requests = await adminService.listRequests();
         sendJson(res, 200, { requests, requestId });
+        return;
+      }
+
+      if (req.method === 'GET' && pathname === '/api/admin/consumers') {
+        requireRole(req, config.sessionSecret, 'admin');
+        const consumers = await adminService.listConsumers();
+        sendJson(res, 200, { consumers, requestId });
         return;
       }
 
@@ -420,5 +531,5 @@ export async function createNaylApp(config) {
     }
   });
 
-  return { server, store, services: { marketplaceService, businessService, adminService }, orchestrator };
+  return { server, store, services: { marketplaceService, consumerService, businessService, adminService, settingsService }, orchestrator };
 }

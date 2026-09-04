@@ -1,56 +1,14 @@
-# NAYL Production Pilot
+# NAYL Direct-Live Application
 
-> **Flat GitHub upload edition:** every source, browser, test, SQL, documentation, and screenshot file is intentionally in this one directory. Select all extracted files and upload them together to the root of an empty GitHub repository.
+NAYL is a GCC-first AI buyer. A consumer describes an outcome, NAYL resolves the buying intent, searches every configured live source, creates a real quote request, routes it to matching businesses, collects quotes, and creates a confirmed booking when the consumer accepts one.
 
-NAYL is a GCC-first AI buyer. A consumer describes an outcome, NAYL resolves the buying intent, searches only configured live sources, opens a persisted quote request, matches verified businesses, collects quotes, and creates a booking when the consumer accepts one.
+This package is a running application, not a static prototype. It starts immediately with no `.env` file and includes native consumer, business, and owner authentication.
 
-This package is a functioning production-pilot application, not a static mock-up. It deliberately starts with an empty marketplace: businesses must register and an administrator must verify them before they can appear in search or receive opportunities.
-
-## Separate portals
-
-| Portal | Route | Purpose |
-|---|---|---|
-| Consumer | `/` | Natural-language search, source-aware results, request creation, quote comparison, booking |
-| Business | `/business` | Registration, sign-in, verified opportunity feed, quote submission, profile and KPIs |
-| Admin & Operations | `/admin` | Secure sign-in, business verification, connector health, marketplace and request oversight |
-
-The consumer interface does not expose navigation links to the business or admin portals. Those portals are opened directly through their routes.
-
-## What is real in this build
-
-- Consumer, business, and admin actions call the backend API and persist state.
-- `Request quote` opens a validated contact/details form and creates an actual opportunity.
-- Verified businesses matching the request's country, city, and category receive the opportunity.
-- A business can submit or update a quote.
-- The consumer automatically receives and compares quotes, then accepts one.
-- Quote acceptance creates a confirmed booking, closes competing quotes, and reveals customer contact only to the winning business.
-- Business passwords are salted and hashed with scrypt.
-- Consumer, business, and admin data are protected by signed role-specific sessions.
-- The application has audit events, rate limiting, validation, security headers, connector disclosure, and optional email notifications.
-- Supabase/PostgreSQL persistence is supported for free-hosted deployments; local atomic JSON is a development fallback.
-
-## Live connectors
-
-| Connector | Capability | Required variable |
-|---|---|---|
-| NAYL Marketplace | Searches real NAYL businesses that registered and passed admin verification | Always active |
-| OpenAI Buyer Intelligence | Structured intent extraction for category, GCC market, city, budget, urgency, language, and constraints | `OPENAI_API_KEY` |
-| OpenAI Deep Search | Live agentic web research through the Responses API `web_search` tool, with clickable source URLs | `OPENAI_API_KEY` |
-| Google Places | Live local-business discovery through Places Text Search (New) | `GOOGLE_MAPS_API_KEY` |
-| Brave Web Search | Live public-web provider discovery | `BRAVE_SEARCH_API_KEY` |
-| Resend | Transactional email for verification, opportunities, quotes, and bookings | `RESEND_API_KEY`, `EMAIL_FROM` |
-| Supabase | Persistent PostgreSQL-backed state on hosts with ephemeral disks | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` |
-
-A connector with no credential is returned as `not-configured`; the application never substitutes fake data. A configured connector that fails returns an error state while the other connectors continue.
-
-A ChatGPT subscription is not an API credential. NAYL needs a separate OpenAI Platform API key with API billing enabled.
-
-## Local start
+## Start now
 
 Requirements: Node.js 22 or newer.
 
 ```bash
-cp .env.example .env
 npm start
 ```
 
@@ -63,93 +21,129 @@ Admin:   http://localhost:8787/admin
 Health:  http://localhost:8787/api/health
 ```
 
-Set at least these values in `.env` before sharing the application:
+On the first visit to `/admin`, create the owner account. This first-run setup closes permanently after the first owner is created.
 
-```dotenv
-SESSION_SECRET=replace-with-a-random-secret-at-least-32-characters
-ADMIN_EMAIL=operations@yourdomain.com
-ADMIN_PASSWORD=replace-with-a-strong-password
+## Separate portals
+
+| Portal | Route | Working capabilities |
+|---|---|---|
+| Consumer | `/` | Create account, sign in, natural-language search, source-aware results, create request, receive quotes, accept quote, confirm booking |
+| Business | `/business` | Register, sign in, manage profile, receive matched opportunities, submit/update quotes, see won bookings |
+| Admin & Operations | `/admin` | First-run owner setup, sign in, configure/test connectors, provider controls, demand/booking KPIs, audit log |
+
+The consumer portal does not link to the protected business or admin portals. Open those routes directly.
+
+## What works before adding external credentials
+
+The complete first-party marketplace loop works immediately:
+
+```text
+Business signs up
+      ↓
+Business becomes active for the direct pilot
+      ↓
+Consumer signs up and searches
+      ↓
+Consumer presses Request quote
+      ↓
+Persisted opportunity appears at /business
+      ↓
+Business submits price, timing, and scope
+      ↓
+Consumer receives and accepts the quote
+      ↓
+Confirmed booking is created
 ```
 
-Generate a strong session secret, for example:
+The default direct-pilot policy automatically activates newly registered businesses. The owner can disable **Automatic provider verification** at `/admin` and review every business manually.
 
-```bash
-node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
-```
+## Turn on OpenAI, Google, Brave, and email inside the app
 
-## Persistent free deployment: Supabase + Render
+After creating the owner account, open `/admin` and use **Connect NAYL**. Add credentials and press **Save & test**. A successful key becomes active immediately; no source-code edit, environment-variable edit, or redeploy is required.
 
-Render Free has an ephemeral filesystem, so persistent requests and bookings require Supabase.
+| Connector | What it does | Credential required |
+|---|---|---|
+| NAYL Marketplace | Searches registered NAYL businesses and powers requests, quotes, and bookings | None; always live |
+| OpenAI Buyer Intelligence | Structured extraction of category, GCC market, city, budget, urgency, language, and constraints | OpenAI Platform API key |
+| OpenAI Deep Search | Live provider research using the OpenAI Responses API web-search tool | Same OpenAI Platform API key |
+| Google Places | Real local-business discovery through Places Text Search (New) | Google Maps API key with Places API (New) and billing enabled |
+| Brave Web Search | Real public-web discovery | Brave Search API subscription token |
+| Resend | Quote, opportunity, and booking emails | Resend API key and verified sender |
 
-1. Create a Supabase project.
-2. Open its SQL Editor and run [`SUPABASE_SETUP.sql`](SUPABASE_SETUP.sql).
-3. Copy the project URL and a backend-only secret key from Supabase project settings.
-4. Upload this repository to GitHub.
-5. In Render, create a Blueprint from the repository. Render reads [`render.yaml`](render.yaml), builds the supplied [`Dockerfile`](Dockerfile), and uses `/api/health` for health checks.
-6. Enter all environment variables marked `sync: false`.
-7. After Render assigns the domain, set `APP_BASE_URL` to the full HTTPS domain and redeploy.
+Credentials entered in the admin console are encrypted with AES-256-GCM before persistence. Saved values are never returned to the browser. Environment variables remain supported as an alternative.
 
-The minimum persistent configuration is:
+Third-party connectors cannot be genuinely pre-enabled in a distributable ZIP because their providers require credentials tied to the application owner's account, terms, quotas, and billing. NAYL never substitutes fabricated results when a credential is absent or invalid.
+
+## Publish on Render
+
+The checked-in `render.yaml` is zero-prompt for the initial deployment. It creates a free Docker web service, generates a stable session secret, configures the health check, and enables direct-pilot business activation.
+
+1. Upload the extracted package to the root of a GitHub repository.
+2. In Render, choose **New → Blueprint** and select the repository.
+3. Deploy.
+4. Open `https://your-service.onrender.com/admin` and create the owner account.
+5. Add and test OpenAI, Google, Brave, and optional Resend credentials inside the admin portal.
+
+Render supplies `RENDER_EXTERNAL_URL`; NAYL uses it automatically for public links. Do not set `PORT` manually.
+
+### Persistence on free hosting
+
+NAYL uses an atomic JSON store by default, which works immediately and persists on a normal server or Docker volume. Hosts with ephemeral filesystems can lose local state after a restart or redeploy. For a lasting public pilot, either attach a persistent disk or configure Supabase using `SUPABASE_SETUP.sql` and these optional variables:
 
 ```dotenv
-APP_BASE_URL=https://your-service.onrender.com
-SESSION_SECRET=<generated by Render Blueprint>
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SECRET_KEY=sb_secret_...
-ADMIN_EMAIL=operations@yourdomain.com
-ADMIN_PASSWORD=<strong unique password>
 ```
 
-Then add the connector keys you intend to activate:
+When Supabase is configured, all accounts, encrypted connector settings, requests, quotes, bookings, and audit events use the PostgreSQL-backed store.
+
+## Optional environment configuration
+
+No environment variables are required for a local first launch. The full list is in `.env.example`.
 
 ```dotenv
-OPENAI_API_KEY=sk-...
-GOOGLE_MAPS_API_KEY=...
-BRAVE_SEARCH_API_KEY=...
-RESEND_API_KEY=re_...
-EMAIL_FROM=NAYL <quotes@your-verified-domain.com>
+SESSION_SECRET=
+SUPABASE_URL=
+SUPABASE_SECRET_KEY=
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.6-luna
+OPENAI_DEEP_MODEL=gpt-5.6-terra
+GOOGLE_MAPS_API_KEY=
+BRAVE_SEARCH_API_KEY=
+RESEND_API_KEY=
+EMAIL_FROM=
+AUTO_VERIFY_BUSINESSES=true
 ```
 
-Detailed instructions are in [`DEPLOY_RENDER.md`](DEPLOY_RENDER.md).
+Admin-vault credentials take precedence over environment credentials. Removing a stored key makes the environment key active again, when present.
 
-## First real end-to-end run
-
-1. Open `/business`, choose **Register business**, and submit a genuine provider profile.
-2. Open `/admin`, sign in with `ADMIN_EMAIL` and `ADMIN_PASSWORD`, and verify the provider.
-3. Open `/`, search for a need in the provider's approved city/category, and press **Request quote**.
-4. Complete the buyer form. The request is persisted and appears in the verified business account.
-5. Sign into `/business`, open the opportunity, and submit a price, availability, expiry, and message.
-6. Return to the consumer browser. The page polls for updates every 20 seconds; press **Refresh** for an immediate update.
-7. Accept the quote. NAYL creates a confirmed booking and reveals the buyer's contact to the winning business.
-
-## Useful commands
+## Validation
 
 ```bash
-npm run check   # syntax, route, and secret-pattern checks
-npm test        # automated API and workflow tests
-npm start       # production-style local server
-npm run dev     # Node watch mode
+npm run check
+npm test
 ```
 
-Docker:
+The automated suite covers:
 
-```bash
-docker compose up --build
-```
+- three separate portal routes
+- consumer, business, and admin authentication boundaries
+- first-run owner setup
+- encrypted connector persistence and key masking
+- protected connector tests
+- Google Places, Brave, OpenAI Responses API, and Resend request contracts
+- the full request → quote → acceptance → booking workflow
+- input validation, quote expiry, and role isolation
 
-## Important pilot boundaries
+## Public-launch boundaries
 
-This build is appropriate for a controlled pilot with real providers and quote requests, after configuring persistent storage, secrets, API billing, policies, and operational ownership. It is not yet a complete regulated public marketplace. Before accepting high-volume or regulated transactions, add consumer account verification, formal KYB, granular admin RBAC, normalized database tables, durable job queues, payment and ledger services, refunds/disputes, fraud controls, notification retries, backups, monitoring, consent/retention controls, and market/vertical legal approvals.
+This is a functional production-pilot foundation. Before high-volume or regulated use, add verified email/phone ownership, formal KYB, granular admin RBAC, normalized database tables, durable queues, payment and ledger services, refunds/disputes, fraud controls, backups, centralized observability, consent/retention controls, and country/vertical legal review.
 
-See [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md) and [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
+See:
 
-## Documentation
-
-- [`DEPLOY_RENDER.md`](DEPLOY_RENDER.md) — exact free deployment procedure
-- [`API.md`](API.md) — routes, authentication, and request examples
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) — system and data-flow design
-- [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) — controlled launch plan
-- [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md) — completed controls and remaining launch gates
-- [`SUPABASE_SETUP.sql`](SUPABASE_SETUP.sql) — one-time persistence schema
-
-- [`VALIDATION_REPORT.md`](VALIDATION_REPORT.md) — automated and smoke-test evidence
+- `DEPLOY_RENDER.md`
+- `API.md`
+- `ARCHITECTURE.md`
+- `PRODUCTION_READINESS.md`
+- `SUPABASE_SETUP.sql`
+- `VALIDATION_REPORT.md`

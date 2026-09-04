@@ -1,55 +1,72 @@
 # NAYL Architecture
 
-## System view
+## Runtime view
 
 ```text
-┌────────────────────────────────────────────────────────────────────┐
-│                         Browser clients                            │
-│                                                                    │
-│  Consumer `/`       Business `/business`       Admin `/admin`      │
-│  anonymous session  business auth + profile    operations auth      │
-└──────────────────────────────┬─────────────────────────────────────┘
-                               │ same-origin HTTPS / JSON
-                               ▼
-┌────────────────────────────────────────────────────────────────────┐
-│                    NAYL Node.js application                        │
-│                                                                    │
-│  Security headers · input validation · role authorization          │
-│  Search API · request workflow · quote workflow · booking workflow │
-│  Admin operations · audit · notification orchestration             │
-└───────────────┬───────────────────────────────┬────────────────────┘
-                │                               │
-                ▼                               ▼
-┌──────────────────────────────┐    ┌───────────────────────────────┐
-│ Search orchestration         │    │ Persistence                   │
-│                              │    │                               │
-│ • Local intent fallback      │    │ Preferred: Supabase/Postgres │
-│ • OpenAI structured intent   │    │ JSONB state + revision CAS    │
-│ • Parallel connectors        │    │                               │
-│ • Timeout isolation          │    │ Development: atomic JSON file│
-│ • Schema normalization       │    └───────────────────────────────┘
-│ • Deduplication and ranking  │
-└───────────────┬──────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                           Browser clients                            │
+│                                                                      │
+│  Consumer `/`             Business `/business`       Admin `/admin`  │
+│  account + requests       provider + quote console   owner + ops     │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │ same-origin HTTPS + JSON
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                       NAYL Node.js service                           │
+│                                                                      │
+│ auth · authorization · validation · rate limit · CSP · audit         │
+│ search orchestration · opportunity matching · quotes · bookings      │
+│ first-run owner setup · encrypted connector vault · connector tests  │
+└──────────────────┬───────────────────────────┬───────────────────────┘
+                   │                           │
+                   ▼                           ▼
+┌───────────────────────────────┐    ┌────────────────────────────────┐
+│ Dynamic search runtime        │    │ Persistence                    │
+│                               │    │                                │
+│ • deterministic fallback      │    │ immediate: atomic JSON         │
+│ • OpenAI structured intent    │    │ optional: Supabase/Postgres    │
+│ • NAYL Marketplace            │    │ encrypted connector settings   │
+│ • Google Places               │    │ accounts, demand, quotes       │
+│ • Brave Web Search            │    │ bookings, audit, tests         │
+│ • OpenAI Deep Search          │    └────────────────────────────────┘
+│ • ranking + deduplication     │
+└───────────────┬───────────────┘
                 │
-     ┌──────────┼──────────────┬────────────────┐
-     ▼          ▼              ▼                ▼
- NAYL live   Google Places  Brave Search   OpenAI web_search
- providers   Text Search    public web     deep sourcing
-
-Optional side effect: Resend transactional email
+      ┌─────────┼──────────┬───────────────┐
+      ▼         ▼          ▼               ▼
+   OpenAI    Google      Brave           Resend
+ Responses  Places API  Search API      email API
 ```
+
+## Direct activation model
+
+Connector configuration is resolved for every search or notification operation:
+
+```text
+protected admin-vault value
+          │ takes precedence
+          ▼
+environment-variable value
+          │ fallback
+          ▼
+setup-required state
+```
+
+The owner enters credentials at `/admin`. The backend encrypts each secret with AES-256-GCM using a key derived from the stable session secret. Only a masked hint, provider source, model configuration, and test result are returned to the browser. The decrypted value exists only in the server process while constructing a provider request.
+
+Because connector factories are created from current runtime settings, saving a new credential activates it without a process restart or redeployment.
 
 ## Search execution
 
-1. The API validates the query, market, city, locale, and deep-search flag.
-2. A deterministic parser creates a safe fallback intent.
-3. When configured, OpenAI Structured Outputs refines the intent using only supported category/market enums.
-4. NAYL Marketplace, Google Places, and Brave run concurrently.
-5. Deep search runs only when the consumer activates it and OpenAI is configured.
-6. Each connector returns the common result contract.
-7. The orchestrator deduplicates and ranks results while preserving attribution, source type, source mode, and external URL.
-8. Connector failures are surfaced in the response and do not fabricate replacement results.
-9. A search audit event is persisted.
+1. Validate query, GCC market, city, locale, and Deep Search flag.
+2. Produce a deterministic local intent so search still functions when OpenAI is unavailable.
+3. When OpenAI is configured, refine the intent with strict JSON-schema structured output.
+4. Run NAYL Marketplace, Google Places, and Brave concurrently.
+5. When selected, run OpenAI Deep Search with live web search and source collection.
+6. Normalize every provider response into one result contract.
+7. Deduplicate and rank while retaining source, mode, attribution, and URL.
+8. Return independent connector status and latency; one provider failure does not cancel the others.
+9. Persist a search audit event.
 
 ## Shared result contract
 
@@ -77,98 +94,72 @@ Optional side effect: Resend transactional email
 }
 ```
 
-External search results remain external and attributed. A consumer can use them as context for a NAYL request, but NAYL does not pretend the external provider has joined or will answer. Only registered, verified NAYL businesses receive and submit quotes.
+External results remain attributed external sources. They can be attached as context to a NAYL request, but NAYL does not claim that an external provider was contacted. Only registered NAYL businesses receive opportunities and submit quotes.
 
 ## Marketplace transaction
 
 ```text
-consumer session
+consumer account
       │
       ▼
-validated persisted request
-      │ match: verified + active + country + city + category
+validated persisted quote request
+      │ match: active + market + city + category
       ▼
 business opportunity feed
       │
       ▼
-validated quote (price, currency, availability, expiry, message)
+validated quote: amount + currency + timing + message + optional expiry
       │
       ▼
-consumer comparison
-      │ atomic acceptance transaction
+consumer quote comparison
+      │ atomic acceptance
       ▼
-confirmed booking + losing quotes declined + winning contact released
+confirmed booking + competing quotes declined + winning contact released
 ```
 
-The contact-release rule limits disclosure: matching businesses see demand context but not personal contact information. Only the booked business receives the contact.
+Personal contact information is hidden from matching providers until a provider wins the booking.
 
 ## Authentication and authorization
 
-- Business passwords: random salt + Node.js `scrypt`, 64-byte derived hash.
-- Sessions: HMAC-SHA256 signed bearer tokens with role, subject, issue time, expiry, and unique token ID.
-- Consumer session: anonymous identity, 180-day expiry.
-- Business session: 30-day expiry.
-- Admin session: 12-hour expiry, created only after constant-time comparison with server environment credentials.
-- Route handlers enforce role and resource ownership.
+- Consumer, business, and owner passwords use unique salts and Node.js `scrypt`.
+- Sessions are signed with HMAC-SHA256 and include role, subject, issue time, expiry, and unique token ID.
+- Consumer and business sessions last 30 days; owner sessions last 12 hours.
+- The first owner can be created only when no stored or environment administrator exists.
+- Every private route enforces role and resource ownership.
+- Connector-management endpoints require an owner token.
 
-For public scale, migrate to a managed identity provider, HttpOnly secure cookies or short-lived access tokens with rotation, MFA for admins, email/phone verification, session revocation, and granular RBAC.
+A public-scale release should add email/phone verification, password recovery, MFA for privileged users, session revocation, granular RBAC, and managed identity controls.
 
-## Persistence model
+## Persistence
 
-### Pilot mode: Supabase/PostgreSQL state document
+### Immediate mode: atomic JSON
 
-The complete state is stored in one `jsonb` row (`nayl_state.state_key='primary'`) with a revision number. Writes use optimistic compare-and-swap semantics:
+The app starts with no database. Writes use a serialized transaction queue and atomic temporary-file rename. This is suitable for local use, a single server, or a Docker instance with a persistent volume.
 
-1. read `data, revision`
+### Optional persistent cloud mode: Supabase/PostgreSQL
+
+The complete state can be stored in one `jsonb` row with a revision number. Writes use optimistic compare-and-swap:
+
+1. read state and revision
 2. mutate a private copy
-3. update only where the revision still matches
+3. update only when the revision still matches
 4. increment revision
 5. retry on conflict
 
-Benefits for this stage:
+This keeps the pilot dependency-light. At scale, normalize users, organizations, providers, service areas, searches, requests, matches, quotes, bookings, payments, notifications, and audit events into constrained tables and add queues/outbox processing.
 
-- no database driver dependency
-- works through Supabase PostgREST
-- persistent on Render Free
-- atomic application-level transitions
-- simple export and reset
+## Connector security and source integrity
 
-Limitations:
+- Provider credentials remain server-side.
+- Admin-vault secrets are authenticated-encrypted at rest.
+- External URLs allow only HTTP and HTTPS.
+- Web markup is stripped and text lengths are capped.
+- OpenAI Deep Search results survive only when their canonical URL appears in the actual web-search source list.
+- Source attribution remains visible.
+- No connector silently falls back to fabricated data.
 
-- the whole document is read/written on each transaction
-- write contention grows with traffic
-- database constraints cannot protect individual business/quote/booking records
-- analytics queries require application processing
+## Frontend system
 
-### Scale target
+The three portals use separate HTML and JavaScript entry points with shared design tokens. The original interface uses a dark, high-contrast, telemetry-oriented visual system inspired only by the performance qualities the user liked in WHOOP; it does not copy WHOOP assets, branding, terminology, or proprietary screens.
 
-Normalize into tables such as:
-
-```text
-users, consumer_profiles, organizations, business_users
-businesses, branches, categories, service_areas, verifications
-searches, connector_runs, search_results
-quote_requests, request_matches, quotes, bookings, order_events
-payments, ledger_entries, refunds, disputes
-reviews, notifications, notification_attempts
-audit_events, admin_roles, admin_role_assignments
-```
-
-Add row-level transaction boundaries, unique/idempotency constraints, queues, outbox processing, backups, and a warehouse/event stream.
-
-## Connector security
-
-All provider credentials stay in server environment variables. The browser calls only NAYL. Source content is treated as untrusted:
-
-- external URLs allow only `http` and `https`
-- web markup is stripped before display
-- text lengths are capped
-- OpenAI structured deep results are kept only when their canonical URL appears in the actual source list returned by the web-search tool
-- source attribution remains visible and clickable
-- the application never embeds credentials into result URLs or browser code
-
-## Frontend design
-
-The interface uses an original dark performance-dashboard system influenced by high-level traits the user liked—strong contrast, telemetry rings, compact metrics, luminous action states, and restrained motion. It does not copy WHOOP logos, assets, layouts, product terminology, or proprietary visual elements.
-
-All three portals share design tokens but have separate HTML and JavaScript entry points. English/Arabic switching updates text direction (`ltr`/`rtl`) and localized content.
+English and Arabic are supported, including RTL direction changes.

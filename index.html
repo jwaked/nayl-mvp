@@ -18,6 +18,8 @@
       </a>
       <div class="topbar__actions">
         <span id="live-status" class="status-pill"><span class="status-pill__dot"></span><span>Live buyer network</span></span>
+        <button id="account-button" class="account-button button--small" type="button">Sign in</button>
+        <button id="consumer-logout-button" class="ghost-button button--small hidden" type="button">Sign out</button>
         <button id="language-button" class="ghost-button button--small" type="button">العربية</button>
       </div>
     </div>
@@ -96,6 +98,33 @@
     <span>NAYL · source-aware buying across the GCC</span>
     <span id="footer-disclosure">External results open their original source. Quote requests are handled by registered NAYL businesses.</span>
   </footer>
+
+
+  <dialog id="consumer-auth-dialog" class="dialog dialog--auth">
+    <div class="dialog__header">
+      <div><span class="eyebrow" id="consumer-auth-eyebrow">Buyer account</span><h2 id="consumer-auth-title">Keep every request in one place.</h2></div>
+      <button class="icon-button" type="button" data-close-dialog aria-label="Close"></button>
+    </div>
+    <div class="dialog__body">
+      <p id="consumer-auth-copy" class="muted">Sign in or create an account before sending a quote request.</p>
+      <div class="tab-bar" style="margin-top:20px">
+        <button id="consumer-login-tab" class="tab-button is-active" type="button">Sign in</button>
+        <button id="consumer-register-tab" class="tab-button" type="button">Create account</button>
+      </div>
+      <form id="consumer-login-form" class="form-grid">
+        <div class="form-field form-field--full"><label id="consumer-login-email-label" for="consumer-login-email">Email</label><input id="consumer-login-email" class="input" type="email" autocomplete="email" required></div>
+        <div class="form-field form-field--full"><label id="consumer-login-password-label" for="consumer-login-password">Password</label><input id="consumer-login-password" class="input" type="password" autocomplete="current-password" required></div>
+        <div class="form-actions"><button id="consumer-login-submit" class="primary-button button--wide" type="submit">Sign in</button></div>
+      </form>
+      <form id="consumer-register-form" class="form-grid hidden">
+        <div class="form-field"><label id="consumer-register-name-label" for="consumer-register-name">Your name</label><input id="consumer-register-name" class="input" autocomplete="name" minlength="2" maxlength="120" required></div>
+        <div class="form-field"><label id="consumer-register-phone-label" for="consumer-register-phone">Phone (optional)</label><input id="consumer-register-phone" class="input" autocomplete="tel" maxlength="60"></div>
+        <div class="form-field form-field--full"><label id="consumer-register-email-label" for="consumer-register-email">Email</label><input id="consumer-register-email" class="input" type="email" autocomplete="email" required></div>
+        <div class="form-field form-field--full"><label id="consumer-register-password-label" for="consumer-register-password">Password</label><input id="consumer-register-password" class="input" type="password" autocomplete="new-password" minlength="8" required><span id="consumer-password-hint" class="field-hint">Use at least 8 characters with a letter and a number.</span></div>
+        <div class="form-actions"><button id="consumer-register-submit" class="primary-button button--wide" type="submit">Create account</button></div>
+      </form>
+    </div>
+  </dialog>
 
   <dialog id="quote-dialog" class="dialog">
     <form id="quote-request-form" method="dialog">

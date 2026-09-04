@@ -4,9 +4,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createNaylApp } from './backend-app.js';
-import { SupabaseStore } from './lib-store.js';
+import { SupabaseStore } from './backend-lib-store.js';
 
-async function createHarness() {
+async function createHarness(overrides = {}) {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'nayl-test-'));
   const config = {
     nodeEnv: 'test',
@@ -25,8 +25,8 @@ async function createHarness() {
     adminPassword: 'Admin1234',
     autoVerifyBusinesses: false,
     openaiApiKey: '',
-    openaiModel: 'gpt-5-mini',
-    openaiDeepModel: 'gpt-5.5',
+    openaiModel: 'gpt-5.6-luna',
+    openaiDeepModel: 'gpt-5.6-terra',
     braveSearchApiKey: '',
     googleMapsApiKey: '',
     resendApiKey: '',
@@ -34,7 +34,8 @@ async function createHarness() {
     connectorTimeoutMs: 2_000,
     deepSearchTimeoutMs: 3_000,
     rateLimitWindowMs: 60_000,
-    rateLimitMax: 1_000
+    rateLimitMax: 1_000,
+    ...overrides
   };
   const app = await createNaylApp(config);
   await new Promise((resolve) => app.server.listen(0, '127.0.0.1', resolve));
@@ -93,9 +94,9 @@ test('discloses connector state and starts without fabricated providers', async 
   assert.equal(config.response.status, 200);
   assert.equal(config.payload.storageMode, 'json-local');
   assert.equal(config.payload.connectors.find((item) => item.id === 'nayl-marketplace').mode, 'live');
-  assert.equal(config.payload.connectors.find((item) => item.id === 'google-places').mode, 'not-configured');
-  assert.equal(config.payload.connectors.find((item) => item.id === 'brave-web').mode, 'not-configured');
-  assert.equal(config.payload.connectors.find((item) => item.id === 'openai-deep-search').mode, 'not-configured');
+  assert.equal(config.payload.connectors.find((item) => item.id === 'google-places').mode, 'setup-required');
+  assert.equal(config.payload.connectors.find((item) => item.id === 'brave-web').mode, 'setup-required');
+  assert.equal(config.payload.connectors.find((item) => item.id === 'openai-deep-search').mode, 'setup-required');
 
   const search = await harness.request('/api/search', {
     method: 'POST',
@@ -320,4 +321,113 @@ test('uses the correct Supabase authentication header for current and legacy key
   const legacy = new SupabaseStore('https://example.supabase.co', 'eyJlegacy-service-role');
   assert.equal(legacy.headers().apikey, 'eyJlegacy-service-role');
   assert.equal(legacy.headers().Authorization, 'Bearer eyJlegacy-service-role');
+});
+
+test('supports first-run owner setup and activates encrypted connectors without redeploying', async (t) => {
+  const harness = await createHarness({ adminEmail: '', adminPassword: '' });
+  t.after(harness.close);
+
+  const initial = await harness.request('/api/config');
+  assert.equal(initial.response.status, 200);
+  assert.equal(initial.payload.setupRequired, true);
+
+  const setup = await harness.request('/api/admin/setup', {
+    method: 'POST',
+    body: { name: 'NAYL Owner', email: 'owner@nayl.test', password: 'Owner1234' }
+  });
+  assert.equal(setup.response.status, 201);
+  assert.ok(setup.payload.token);
+  const adminToken = setup.payload.token;
+
+  const duplicate = await harness.request('/api/admin/setup', {
+    method: 'POST',
+    body: { name: 'Second Owner', email: 'second@nayl.test', password: 'Second1234' }
+  });
+  assert.equal(duplicate.response.status, 409);
+
+  const saved = await harness.request('/api/admin/connectors', {
+    token: adminToken,
+    method: 'PUT',
+    body: {
+      openai: { apiKey: 'sk-live-secret-value', model: 'gpt-5.6-luna', deepModel: 'gpt-5.6-terra' },
+      google: { apiKey: 'AIza-live-secret-value' },
+      brave: { apiKey: 'BSA-live-secret-value' },
+      resend: { apiKey: 're_live_secret_value', emailFrom: 'NAYL <quotes@nayl.test>' },
+      marketplace: { autoVerifyBusinesses: true }
+    }
+  });
+  assert.equal(saved.response.status, 200);
+  assert.equal(saved.payload.connectors.openai.configured, true);
+  assert.equal(saved.payload.connectors.google.configured, true);
+  assert.equal(saved.payload.connectors.brave.configured, true);
+  assert.equal(saved.payload.connectors.resend.configured, true);
+  assert.equal(saved.payload.connectors.marketplace.autoVerifyBusinesses, true);
+  assert.doesNotMatch(JSON.stringify(saved.payload), /sk-live-secret-value|AIza-live-secret-value|BSA-live-secret-value|re_live_secret_value/);
+
+  const stored = await fs.readFile(harness.store.filePath, 'utf8');
+  assert.doesNotMatch(stored, /sk-live-secret-value|AIza-live-secret-value|BSA-live-secret-value|re_live_secret_value/);
+  assert.match(stored, /aes-256-gcm/);
+
+  const after = await harness.request('/api/config');
+  assert.equal(after.payload.setupRequired, false);
+  assert.equal(after.payload.connectors.find((item) => item.id === 'openai-intent').mode, 'live');
+  assert.equal(after.payload.connectors.find((item) => item.id === 'openai-deep-search').mode, 'live');
+  assert.equal(after.payload.connectors.find((item) => item.id === 'google-places').mode, 'live');
+  assert.equal(after.payload.connectors.find((item) => item.id === 'brave-web').mode, 'live');
+});
+
+test('tests connector credentials through the protected admin API', async (t) => {
+  const harness = await createHarness({ adminEmail: '', adminPassword: '' });
+  t.after(harness.close);
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const setup = await harness.request('/api/admin/setup', {
+    method: 'POST',
+    body: { name: 'NAYL Owner', email: 'owner@nayl.test', password: 'Owner1234' }
+  });
+  const adminToken = setup.payload.token;
+  await harness.request('/api/admin/connectors', {
+    token: adminToken,
+    method: 'PUT',
+    body: {
+      openai: { apiKey: 'sk-test', model: 'gpt-5.6-luna', deepModel: 'gpt-5.6-terra' },
+      google: { apiKey: 'google-test' },
+      brave: { apiKey: 'brave-test' },
+      resend: { apiKey: 'resend-test', emailFrom: 'NAYL <quotes@nayl.test>' }
+    }
+  });
+
+  globalThis.fetch = async (input, init = {}) => {
+    const url = String(input);
+    if (url.startsWith(harness.baseUrl)) return originalFetch(input, init);
+    if (url === 'https://api.openai.com/v1/models') {
+      assert.equal(init.headers.Authorization, 'Bearer sk-test');
+      return new Response(JSON.stringify({ data: [{ id: 'gpt-5.6-luna' }, { id: 'gpt-5.6-terra' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (url === 'https://places.googleapis.com/v1/places:searchText') {
+      assert.equal(init.headers['X-Goog-Api-Key'], 'google-test');
+      return new Response(JSON.stringify({ places: [{ id: 'place-1', displayName: { text: 'Test' } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (url.startsWith('https://api.search.brave.com/res/v1/web/search')) {
+      assert.equal(init.headers['X-Subscription-Token'], 'brave-test');
+      return new Response(JSON.stringify({ web: { results: [{ title: 'Test' }] } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (url === 'https://api.resend.com/domains') {
+      assert.equal(init.headers.Authorization, 'Bearer resend-test');
+      return new Response(JSON.stringify({ data: [{ id: 'domain-1' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    throw new Error(`Unexpected fetch: ${url}`);
+  };
+
+  for (const provider of ['openai', 'google', 'brave', 'resend']) {
+    const tested = await harness.request(`/api/admin/connectors/${provider}/test`, { token: adminToken, method: 'POST', body: {} });
+    assert.equal(tested.response.status, 200);
+    assert.equal(tested.payload.result.ok, true, provider);
+  }
+
+  const state = await harness.request('/api/admin/connectors', { token: adminToken });
+  for (const provider of ['openai', 'google', 'brave', 'resend']) {
+    assert.equal(state.payload.connectors[provider].lastTest.ok, true, provider);
+  }
 });

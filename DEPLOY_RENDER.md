@@ -1,34 +1,10 @@
-# Deploy NAYL on Render Free with persistent Supabase data
+# Publish NAYL on Render now
 
-This is the lowest-friction persistent deployment path for the current NAYL production pilot:
+The current package is designed to deploy without entering credentials during the Render build.
 
-```text
-GitHub repository
-       │
-       ▼
-Render Free Docker web service
-       │
-       ├── OpenAI Responses API
-       ├── Google Places API (New)
-       ├── Brave Search API
-       ├── Resend email API
-       └── Supabase Postgres/PostgREST
-```
+## 1. Upload to GitHub
 
-## 1. Prepare Supabase
-
-1. Create a Supabase project.
-2. In **SQL Editor**, open a new query.
-3. Paste and run the full contents of `SUPABASE_SETUP.sql`.
-4. In project settings, copy:
-   - Project URL → `SUPABASE_URL`
-   - Backend secret key beginning `sb_secret_` → `SUPABASE_SECRET_KEY`
-
-Never put the secret key in browser JavaScript, GitHub, screenshots, or a client-side environment variable. The NAYL backend sends current `sb_secret_` keys only through the `apikey` header; legacy service-role JWTs are supported through `SUPABASE_SERVICE_ROLE_KEY`.
-
-## 2. Prepare GitHub
-
-Upload every extracted file to the repository root. The front page of the GitHub repository should directly show files such as:
+This is the flat GitHub package. Extract it and upload every file directly to the repository root. The root must contain files such as:
 
 ```text
 Dockerfile
@@ -41,163 +17,121 @@ business.html
 admin.html
 ```
 
-This flat edition intentionally contains no subfolders. Do not upload only the ZIP file; Render must see `Dockerfile` at the repository root.
+There are intentionally no folders, which makes the package compatible with GitHub's file-only browser uploader. Do not upload the ZIP itself.
 
-## 3. Create the Render service
+## 2. Create the Render service
 
-The easiest path is **New → Blueprint** and select the GitHub repository. The checked-in `render.yaml` defines:
+In Render:
 
-- Docker runtime
-- Free plan
-- `/api/health` health check
-- generated `SESSION_SECRET`
-- all required connector variable names
+1. Choose **New → Blueprint**.
+2. Connect the GitHub repository.
+3. Confirm the `nayl` service.
+4. Deploy.
 
-You can alternatively create a Web Service manually with:
+`render.yaml` configures:
 
-| Field | Value |
-|---|---|
-| Runtime | Docker |
-| Branch | `main` |
-| Root directory | blank, when Dockerfile is at repository root |
-| Dockerfile path | `./Dockerfile` |
-| Docker command | blank; the Dockerfile `CMD` is used |
-| Health check path | `/api/health` |
-| Instance type | Free |
-
-## 4. Enter required environment variables
-
-Render will prompt for variables marked `sync: false`. Use:
-
-```dotenv
-APP_BASE_URL=https://your-render-domain.onrender.com
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SECRET_KEY=sb_secret_...
-ADMIN_EMAIL=operations@yourdomain.com
-ADMIN_PASSWORD=<strong unique password>
+```text
+Runtime: Docker
+Plan: Free
+Health check: /api/health
+Generated SESSION_SECRET: yes
+Automatic provider activation: yes for the direct pilot
 ```
 
-`APP_BASE_URL` can be entered after the first deployment assigns the domain. Redeploy after setting it so email buttons point to the correct host.
+No provider API key is required for the build to succeed. Do not add `PORT`; Render injects it.
 
-Do not manually set `PORT`; Render injects it and NAYL reads it automatically.
+## 3. Create the owner
 
-## 5. Activate live search and AI
+After the service becomes live, open:
 
-### OpenAI buyer intelligence and deep search
-
-Set:
-
-```dotenv
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-5-mini
-OPENAI_DEEP_MODEL=gpt-5.5
+```text
+https://your-service.onrender.com/admin
 ```
 
-The standard search path uses structured output for intent extraction. The **Deep search** switch invokes the Responses API `web_search` tool with required live search, GCC location context, source collection, and URL verification. OpenAI API usage is billed separately from ChatGPT subscriptions.
+The first launch shows **Create owner account** instead of a login form. Create the owner immediately. The setup endpoint closes after the first owner is persisted.
+
+## 4. Activate live connectors without redeploying
+
+In the protected admin dashboard, find **Connect NAYL**.
+
+### OpenAI
+
+Enter:
+
+```text
+OpenAI API key: sk-...
+Buyer intelligence model: gpt-5.6-luna
+Deep Search model: gpt-5.6-terra
+```
+
+Press **Save & test**. The same OpenAI key powers structured buyer-intent extraction and live Deep Search.
 
 ### Google Places
 
-In Google Cloud:
+In Google Cloud, enable **Places API (New)** and billing, create a restricted server key, paste it into the Google Places card, and press **Save & test**.
 
-1. Enable **Places API (New)**.
-2. Enable billing for the project.
-3. Create an API key.
-4. Restrict the key to Places API (New) and, where practical for a server-side key, restrict source IPs after choosing hosting with stable egress.
-5. Set:
+### Brave Search
 
-```dotenv
-GOOGLE_MAPS_API_KEY=...
-```
-
-NAYL uses `POST https://places.googleapis.com/v1/places:searchText` with a specific response field mask.
-
-### Brave web search
-
-Create a Brave Search API subscription/token and set:
-
-```dotenv
-BRAVE_SEARCH_API_KEY=...
-```
-
-NAYL sends the token server-side through `X-Subscription-Token`.
+Create a Brave Search API token, paste it into the Brave card, and press **Save & test**.
 
 ### Email notifications
 
-Create a Resend API key, verify a sending domain, and set:
-
-```dotenv
-RESEND_API_KEY=re_...
-EMAIL_FROM=NAYL <quotes@your-verified-domain.com>
-```
-
-Without Resend, the transaction still works in the web portals; the connector is simply reported as not configured.
-
-## 6. Verify the deployment
-
-Open:
+Create a Resend key, verify a sending domain, enter the key and a sender such as:
 
 ```text
-https://your-render-domain.onrender.com/api/health
+NAYL <quotes@yourdomain.com>
 ```
 
-Expected shape:
+Email is optional; the request, quote, and booking workflow functions in the portals without it.
 
-```json
-{
-  "status": "ok",
-  "service": "nayl-production-v1",
-  "version": "1.0.0",
-  "storage": "supabase-postgres"
-}
-```
-
-Then open `/admin`. The connector panel must show:
-
-- **live / ready** for configured connectors
-- **not configured** for missing credentials
-- **Supabase PostgreSQL Storage** for persistence
-
-Do not launch when it says `Local JSON Storage`; data on Render Free will disappear after restart or redeployment.
-
-## 7. Run the marketplace lifecycle
+## 5. Run the real marketplace flow
 
 1. Register a provider at `/business`.
-2. Verify it at `/admin`.
-3. Search at `/` in the provider's market, city, and category.
-4. Create a quote request.
-5. Submit a quote at `/business`.
-6. Accept it from the originating consumer browser.
-7. Confirm the booking and GMV in `/admin`.
+2. Confirm the account shows `verified` under the default direct-pilot policy.
+3. Register a buyer at `/`.
+4. Search in the provider's city and category.
+5. Press **Request quote** and submit the requirement.
+6. Return to `/business`, open the opportunity, and submit a quote.
+7. Return to the consumer portal, refresh requests, and accept the quote.
+8. Confirm the booking and KPIs at `/admin`.
+
+The owner can disable automatic verification in `/admin`. Once disabled, new providers remain pending until the owner verifies them.
+
+## 6. Keep data after restarts
+
+The application works with local JSON immediately. Render services without a persistent disk can lose local files after restart or redeployment. For durable free-tier database storage:
+
+1. Create a Supabase project.
+2. Run `SUPABASE_SETUP.sql` in its SQL editor.
+3. Add these two Render variables:
+
+```dotenv
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SECRET_KEY=sb_secret_...
+```
+
+4. Redeploy once.
+
+The admin dashboard will then report **Supabase PostgreSQL Storage**.
 
 ## Troubleshooting
 
-### Docker says a folder is missing
+### Docker reports a missing folder
 
-Confirm the repository includes `src`, `public`, `scripts`, and `docs`. The supplied Dockerfile copies all four.
+Use the newest package. Its structured Dockerfile copies folders that are included, and the supplied flat package uses `COPY . .` with no subfolder dependency.
 
-### Render starts but health check fails
+### `/admin` shows Sign in but no owner exists
 
-- Health path must be `/api/health`.
-- Do not override the Docker command.
-- Do not set `PORT` manually.
-- `HOST` must be `0.0.0.0`.
+Check `/api/admin/status`. A legacy `ADMIN_EMAIL` and `ADMIN_PASSWORD` environment pair also counts as an administrator. Remove both and redeploy to use first-run owner setup, provided no owner has already been stored.
 
-### Storage reports `json-local`
+### A connector says Setup required
 
-One or both Supabase variables are absent or blank. Set both `SUPABASE_URL` and `SUPABASE_SECRET_KEY`, then redeploy.
+The provider key is absent. Add it in `/admin`. A ChatGPT consumer subscription is not an OpenAI Platform API key.
 
-### Supabase reports `Invalid JWT`
+### A connector test fails
 
-Use the current package. It sends modern `sb_secret_` values through `apikey` only. Remove accidental quotes or whitespace from the Render value. A legacy `eyJ...` service-role key belongs in `SUPABASE_SERVICE_ROLE_KEY`.
+The returned provider message is shown directly in the connector card. Common causes are disabled billing, an API not enabled, a restricted key that blocks the Render server, an unavailable model, or an unverified Resend sender.
 
-### Search has no NAYL businesses
+### NAYL Marketplace returns no provider
 
-This is expected until a business registers and an administrator changes its status from `pending` to `verified`. NAYL does not include fabricated providers.
-
-### External connector says `not-configured`
-
-Add its exact server-side environment variable and redeploy. Never prefix secret variables with `PUBLIC_`, `NEXT_PUBLIC_`, or expose them in client code.
-
-### OpenAI returns a billing or model error
-
-Confirm the OpenAI Platform project has API billing, the API key belongs to that project, and the configured models are enabled for it. A ChatGPT subscription does not fund API calls.
+Register a business whose market, service area, and category match the consumer intent. The marketplace does not fabricate providers.

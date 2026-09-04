@@ -21,30 +21,80 @@
     <div class="auth-card">
       <span class="eyebrow" id="auth-eyebrow">Restricted operations</span>
       <h1 id="auth-title">Control the network.</h1>
-      <p id="auth-copy">Use the admin credentials configured in Render environment variables. Credentials never appear in the browser bundle.</p>
+      <p id="auth-copy">Sign in to manage providers, demand, live connectors, and bookings.</p>
       <form id="login-form" class="form-grid" style="margin-top:24px">
-        <div class="form-field form-field--full"><label for="admin-email">Admin email</label><input id="admin-email" class="input" type="email" required></div>
-        <div class="form-field form-field--full"><label for="admin-password">Password</label><input id="admin-password" class="input" type="password" required></div>
+        <div class="form-field form-field--full"><label id="admin-email-label" for="admin-email">Admin email</label><input id="admin-email" class="input" type="email" autocomplete="email" required></div>
+        <div class="form-field form-field--full"><label id="admin-password-label" for="admin-password">Password</label><input id="admin-password" class="input" type="password" autocomplete="current-password" required></div>
         <div class="form-actions"><button id="login-submit" class="primary-button button--wide" type="submit">Sign in</button></div>
+      </form>
+      <form id="setup-form" class="form-grid hidden" style="margin-top:24px">
+        <div class="setup-notice form-field--full"><strong id="setup-notice-title">First launch</strong><p id="setup-notice-copy">Create the owner account now. This setup closes permanently after the first owner is created.</p></div>
+        <div class="form-field form-field--full"><label id="setup-name-label" for="setup-name">Owner name</label><input id="setup-name" class="input" autocomplete="name" minlength="2" maxlength="120" required></div>
+        <div class="form-field form-field--full"><label id="setup-email-label" for="setup-email">Owner email</label><input id="setup-email" class="input" type="email" autocomplete="email" required></div>
+        <div class="form-field form-field--full"><label id="setup-password-label" for="setup-password">Create password</label><input id="setup-password" class="input" type="password" autocomplete="new-password" minlength="8" required><span id="setup-password-hint" class="field-hint">Use at least 8 characters with a letter and a number.</span></div>
+        <div class="form-actions"><button id="setup-submit" class="primary-button button--wide" type="submit">Create owner account</button></div>
       </form>
     </div>
   </section>
 
   <main id="dashboard-view" class="page-shell hidden">
     <section class="dashboard-hero">
-      <div><span class="eyebrow" id="dashboard-eyebrow">Network operations</span><h1 id="dashboard-title">Truth at a glance.</h1><p id="dashboard-copy">Connector health, business verification, marketplace demand, quotes, and confirmed bookings.</p></div>
+      <div><span class="eyebrow" id="dashboard-eyebrow">Network operations</span><h1 id="dashboard-title">Truth at a glance.</h1><p id="dashboard-copy">Configure live search, verify businesses, and monitor the full buyer-to-booking loop.</p></div>
       <aside class="dashboard-status"><span class="pulse-card__label" id="generated-label">Last generated</span><strong id="generated-at">—</strong><p id="storage-copy">—</p></aside>
     </section>
 
     <section id="metric-grid" class="metric-grid"></section>
 
+    <section class="section panel connector-console">
+      <div class="panel__header connector-console__header">
+        <div><span class="eyebrow">Live integrations</span><h2 id="connector-settings-title">Connect NAYL</h2><p id="connector-settings-copy">Add your provider credentials once. NAYL encrypts them on the server and activates each connector without a redeploy.</p></div>
+        <button id="save-connectors" class="primary-button" type="submit" form="connector-settings-form">Save configuration</button>
+      </div>
+      <form id="connector-settings-form" class="connector-settings-grid panel__body">
+        <article class="connector-config" data-provider="openai">
+          <div class="connector-config__head"><div><span class="connector-logo">AI</span><div><strong>OpenAI</strong><small>Buyer Intelligence + Deep Search</small></div></div><span id="openai-status" class="integration-state">Setup required</span></div>
+          <div class="form-field"><label for="openai-key">OpenAI API key</label><input id="openai-key" class="input" type="password" autocomplete="off" placeholder="sk-…"><span id="openai-key-hint" class="field-hint">Stored encrypted; the saved value is never returned to the browser.</span></div>
+          <div class="connector-config__models"><div class="form-field"><label for="openai-model">Buyer intelligence model</label><input id="openai-model" class="input" value="gpt-5.6-luna"></div><div class="form-field"><label for="openai-deep-model">Deep Search model</label><input id="openai-deep-model" class="input" value="gpt-5.6-terra"></div></div>
+          <div class="connector-config__foot"><label class="clear-key"><input id="openai-clear" type="checkbox"> Remove saved key</label><button class="secondary-button button--small" data-test-provider="openai" type="button">Save & test</button></div>
+          <p id="openai-test" class="connector-test-copy">Not tested yet.</p>
+        </article>
+
+        <article class="connector-config" data-provider="google">
+          <div class="connector-config__head"><div><span class="connector-logo">G</span><div><strong>Google Places</strong><small>Real local-business discovery</small></div></div><span id="google-status" class="integration-state">Setup required</span></div>
+          <div class="form-field"><label for="google-key">Google Maps API key</label><input id="google-key" class="input" type="password" autocomplete="off" placeholder="AIza…"><span id="google-key-hint" class="field-hint">Enable Places API (New) and billing in Google Cloud.</span></div>
+          <div class="connector-config__foot"><label class="clear-key"><input id="google-clear" type="checkbox"> Remove saved key</label><button class="secondary-button button--small" data-test-provider="google" type="button">Save & test</button></div>
+          <p id="google-test" class="connector-test-copy">Not tested yet.</p>
+        </article>
+
+        <article class="connector-config" data-provider="brave">
+          <div class="connector-config__head"><div><span class="connector-logo">B</span><div><strong>Brave Search</strong><small>Independent public-web search</small></div></div><span id="brave-status" class="integration-state">Setup required</span></div>
+          <div class="form-field"><label for="brave-key">Brave Search subscription token</label><input id="brave-key" class="input" type="password" autocomplete="off" placeholder="BSA…"><span id="brave-key-hint" class="field-hint">Used only by the backend through the X-Subscription-Token header.</span></div>
+          <div class="connector-config__foot"><label class="clear-key"><input id="brave-clear" type="checkbox"> Remove saved key</label><button class="secondary-button button--small" data-test-provider="brave" type="button">Save & test</button></div>
+          <p id="brave-test" class="connector-test-copy">Not tested yet.</p>
+        </article>
+
+        <article class="connector-config" data-provider="resend">
+          <div class="connector-config__head"><div><span class="connector-logo">@</span><div><strong>Resend</strong><small>Quote and booking email notifications</small></div></div><span id="resend-status" class="integration-state">Optional</span></div>
+          <div class="form-field"><label for="resend-key">Resend API key</label><input id="resend-key" class="input" type="password" autocomplete="off" placeholder="re_…"></div>
+          <div class="form-field"><label for="email-from">Verified sender</label><input id="email-from" class="input" type="text" autocomplete="off" placeholder="NAYL &lt;quotes@yourdomain.com&gt;"></div>
+          <div class="connector-config__foot"><label class="clear-key"><input id="resend-clear" type="checkbox"> Remove saved key</label><button class="secondary-button button--small" data-test-provider="resend" type="button">Save & test</button></div>
+          <p id="resend-test" class="connector-test-copy">Not tested yet.</p>
+        </article>
+
+        <article class="connector-config connector-config--wide" data-provider="marketplace">
+          <div class="connector-config__head"><div><span class="connector-logo">N</span><div><strong>NAYL Marketplace</strong><small>First-party provider network and quote workflow</small></div></div><span class="integration-state integration-state--live">Live</span></div>
+          <div class="marketplace-control"><div><strong>Automatic provider verification</strong><p>Useful for an immediate pilot. Disable it when you are ready to review each business before it receives buyer opportunities.</p></div><label class="toggle"><input id="auto-verify-businesses" type="checkbox"><span class="toggle__track"><span class="toggle__thumb"></span></span></label></div>
+        </article>
+      </form>
+    </section>
+
     <section class="section split-layout">
       <div class="stack">
-        <div class="panel"><div class="panel__header"><div><span class="eyebrow">KYB foundation</span><h2 id="businesses-title">Business verification</h2></div><button id="refresh-admin" class="icon-button" type="button"></button></div><div id="business-table" class="panel__body--flush table-wrap"></div></div>
+        <div class="panel"><div class="panel__header"><div><span class="eyebrow">KYB foundation</span><h2 id="businesses-title">Business verification</h2></div><button id="refresh-admin" class="icon-button" type="button" aria-label="Refresh"></button></div><div id="business-table" class="panel__body--flush table-wrap"></div></div>
         <div class="panel"><div class="panel__header"><div><span class="eyebrow">Demand audit</span><h2 id="requests-title">Quote requests</h2></div></div><div id="request-table" class="panel__body--flush table-wrap"></div></div>
       </div>
       <aside class="stack">
-        <div class="panel"><div class="panel__header"><h3 id="connectors-title">Connector health</h3></div><div id="connector-grid" class="panel__body connector-grid"></div></div>
+        <div class="panel"><div class="panel__header"><h3 id="connectors-title">Runtime health</h3></div><div id="connector-grid" class="panel__body connector-grid"></div></div>
         <div class="panel"><div class="panel__header"><h3 id="audit-title">Recent operations</h3></div><div id="audit-list" class="panel__body stack"></div></div>
       </aside>
     </section>

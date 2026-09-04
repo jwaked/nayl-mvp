@@ -1,7 +1,6 @@
 import {
   api,
   closeDialog,
-  ensureConsumerSession,
   escapeHtml,
   formatDate,
   formatMoney,
@@ -40,12 +39,17 @@ const copy = {
     from: 'From', checkAvailability: 'Check availability', flexible: 'Flexible', now: 'Now', today: 'Today', tomorrow: 'Tomorrow', weekend: 'Weekend', 'this-week': 'This week',
     disclosure: 'External results open their original source. Quote requests are handled by registered NAYL businesses.',
     search: 'Searching…', deepSearching: 'Researching live web…', searchError: 'Search failed',
-    notConfigured: 'not configured', skipped: 'not used', live: 'live', error: 'error', local: 'local',
+    notConfigured: 'setup required', skipped: 'not used', live: 'live', error: 'error', local: 'local',
     provider: 'Provider', availability: 'Availability', validUntil: 'Valid until', bookingId: 'Booking',
     requestId: 'Request', pendingQuotes: 'Waiting for businesses to reply', sourceResult: 'Started from', researchSources: 'Research sources',
     marketplaceRouting: 'This verified NAYL business is prioritized, and the demand is also available to other matching verified NAYL businesses.',
     externalRouting: 'This external source is reference context only. NAYL sends the request to matching registered NAYL businesses; the external provider is not contacted unless it is registered with NAYL.',
-    generalRouting: 'NAYL sends this request to matching registered and verified NAYL businesses.'
+    generalRouting: 'NAYL sends this request to matching registered and verified NAYL businesses.',
+    signIn: 'Sign in', signOut: 'Sign out', createAccount: 'Create account', buyerAccount: 'Buyer account',
+    authTitle: 'Keep every request in one place.', authCopy: 'Sign in or create an account before sending a quote request.',
+    password: 'Password', passwordHint: 'Use at least 8 characters with a letter and a number.',
+    signingIn: 'Signing in…', creatingAccount: 'Creating account…', welcomeBack: 'Welcome back.', accountCreated: 'Your buyer account is ready.',
+    signInRequired: 'Sign in to send quote requests and see replies on any visit.', signedInAs: 'Signed in as' 
   },
   ar: {
     heroEyebrow: 'مشتري ذكي للخليج · مصادر مباشرة',
@@ -72,12 +76,17 @@ const copy = {
     from: 'ابتداءً من', checkAvailability: 'تحقق من التوفر', flexible: 'مرن', now: 'الآن', today: 'اليوم', tomorrow: 'غداً', weekend: 'نهاية الأسبوع', 'this-week': 'هذا الأسبوع',
     disclosure: 'تفتح النتائج الخارجية مصدرها الأصلي. تعالج شركات NAYL المسجلة طلبات عروض السعر.',
     search: 'جارٍ البحث…', deepSearching: 'جارٍ البحث المعمّق…', searchError: 'تعذر البحث',
-    notConfigured: 'غير مفعّل', skipped: 'لم يُستخدم', live: 'مباشر', error: 'خطأ', local: 'محلي',
+    notConfigured: 'يتطلب الإعداد', skipped: 'لم يُستخدم', live: 'مباشر', error: 'خطأ', local: 'محلي',
     provider: 'المزود', availability: 'التوفر', validUntil: 'صالح حتى', bookingId: 'الحجز',
     requestId: 'الطلب', pendingQuotes: 'بانتظار رد الشركات', sourceResult: 'بدأ من', researchSources: 'مصادر البحث',
     marketplaceRouting: 'ستُعطى هذه الشركة الموثقة في NAYL الأولوية، وسيكون الطلب متاحاً أيضاً للشركات الموثقة المطابقة الأخرى.',
     externalRouting: 'هذا المصدر الخارجي مرجع فقط. يرسل NAYL الطلب إلى الشركات المسجلة والموثقة المطابقة، ولا يتواصل مع المزود الخارجي ما لم يكن مسجلاً في NAYL.',
-    generalRouting: 'يرسل NAYL هذا الطلب إلى الشركات المسجلة والموثقة المطابقة.'
+    generalRouting: 'يرسل NAYL هذا الطلب إلى الشركات المسجلة والموثقة المطابقة.',
+    signIn: 'تسجيل الدخول', signOut: 'تسجيل الخروج', createAccount: 'إنشاء حساب', buyerAccount: 'حساب المشتري',
+    authTitle: 'احتفظ بكل طلباتك في مكان واحد.', authCopy: 'سجّل الدخول أو أنشئ حساباً قبل إرسال طلب عرض سعر.',
+    password: 'كلمة المرور', passwordHint: 'استخدم 8 أحرف على الأقل، مع حرف ورقم.',
+    signingIn: 'جارٍ تسجيل الدخول…', creatingAccount: 'جارٍ إنشاء الحساب…', welcomeBack: 'مرحباً بعودتك.', accountCreated: 'حساب المشتري جاهز.',
+    signInRequired: 'سجّل الدخول لإرسال طلبات عروض السعر ومتابعة الردود.', signedInAs: 'تم تسجيل الدخول باسم' 
   }
 };
 
@@ -88,7 +97,10 @@ const state = {
   token: null,
   search: null,
   requests: [],
-  selectedResult: null
+  selectedResult: null,
+  pendingQuoteResult: undefined,
+  consumer: null,
+  authMode: 'login'
 };
 
 function t(key) { return copy[state.locale][key] ?? copy.en[key] ?? key; }
@@ -121,10 +133,25 @@ function translateStatic() {
   el('dialog-cancel').textContent = t('cancel');
   el('submit-request').textContent = t('create');
   el('footer-disclosure').textContent = t('disclosure');
+  el('consumer-auth-eyebrow').textContent = t('buyerAccount');
+  el('consumer-auth-title').textContent = t('authTitle');
+  el('consumer-auth-copy').textContent = t('authCopy');
+  el('consumer-login-tab').textContent = t('signIn');
+  el('consumer-register-tab').textContent = t('createAccount');
+  el('consumer-login-email-label').textContent = t('email');
+  el('consumer-login-password-label').textContent = t('password');
+  el('consumer-login-submit').textContent = t('signIn');
+  el('consumer-register-name-label').textContent = t('name');
+  el('consumer-register-phone-label').textContent = t('phone');
+  el('consumer-register-email-label').textContent = t('email');
+  el('consumer-register-password-label').textContent = t('password');
+  el('consumer-password-hint').textContent = t('passwordHint');
+  el('consumer-register-submit').textContent = t('createAccount');
   document.title = state.locale === 'ar' ? 'NAYL — اشترِ النتيجة' : 'NAYL — Buy the outcome';
   renderMarketControls();
   renderSearch();
   renderRequests();
+  renderIdentity();
 }
 
 function marketName(market) { return state.locale === 'ar' ? market.nameAr : market.name; }
@@ -236,7 +263,8 @@ function renderRequests() {
   renderPulse();
   const root = el('request-list');
   if (!state.requests.length) {
-    root.innerHTML = `<div class="empty-state">${escapeHtml(t('noRequests'))}</div>`;
+    const message = state.consumer ? t('noRequests') : t('signInRequired');
+    root.innerHTML = `<div class="empty-state">${escapeHtml(message)}${!state.consumer ? `<div style="margin-top:16px"><button class="primary-button button--small" type="button" data-action="open-consumer-auth">${escapeHtml(t('signIn'))}</button></div>` : ''}</div>`;
     return;
   }
   root.innerHTML = state.requests.map((request) => {
@@ -257,22 +285,32 @@ function renderRequests() {
 }
 
 async function loadRequests({ quiet = false } = {}) {
-  if (!state.token) return;
+  if (!state.token || !state.consumer) {
+    state.requests = [];
+    renderRequests();
+    return;
+  }
   try {
     const payload = await api('/api/consumer/requests', { token: state.token });
     state.requests = payload.requests || [];
     renderRequests();
   } catch (error) {
-    if (error.status === 401) {
-      localStorage.removeItem('nayl-consumer-token');
-      state.token = await ensureConsumerSession();
-      return loadRequests({ quiet });
+    if (error.status === 401 || error.status === 404) {
+      clearConsumerSession();
+      renderRequests();
+      if (!quiet) showToast(t('signInRequired'), 'error');
+      return;
     }
     if (!quiet) showToast(error.message, 'error');
   }
 }
 
 function openQuoteRequest(result) {
+  if (!state.consumer || !state.token) {
+    state.pendingQuoteResult = result ?? null;
+    showConsumerAuth('register');
+    return;
+  }
   state.selectedResult = result || null;
   const search = state.search;
   el('selected-result-summary').innerHTML = `<span class="source-tag">${escapeHtml(result?.source || 'NAYL demand network')}</span><h3>${escapeHtml(result?.title || search?.query || el('query-input').value)}</h3><p class="muted">${escapeHtml(result?.subtitle || search?.summary || '')}</p>`;
@@ -281,11 +319,122 @@ function openQuoteRequest(result) {
     : result
       ? t('externalRouting')
       : t('generalRouting');
-  const contact = JSON.parse(localStorage.getItem('nayl-contact') || '{}');
-  el('contact-name').value = contact.name || '';
-  el('contact-email').value = contact.email || '';
-  el('contact-phone').value = contact.phone || '';
+  el('contact-name').value = state.consumer.name || '';
+  el('contact-email').value = state.consumer.email || '';
+  el('contact-phone').value = state.consumer.phone || '';
   openDialog(el('quote-dialog'));
+}
+
+function renderIdentity() {
+  const accountButton = el('account-button');
+  const logoutButton = el('consumer-logout-button');
+  if (state.consumer) {
+    const firstName = state.consumer.name.trim().split(/\s+/)[0];
+    accountButton.textContent = firstName || t('buyerAccount');
+    accountButton.title = `${t('signedInAs')} ${state.consumer.email}`;
+    logoutButton.textContent = t('signOut');
+    logoutButton.classList.remove('hidden');
+  } else {
+    accountButton.textContent = t('signIn');
+    accountButton.title = t('authCopy');
+    logoutButton.classList.add('hidden');
+  }
+}
+
+function clearConsumerSession() {
+  localStorage.removeItem('nayl-consumer-token');
+  state.token = null;
+  state.consumer = null;
+  state.requests = [];
+  renderIdentity();
+}
+
+function showConsumerAuth(mode = 'login') {
+  state.authMode = mode;
+  el('consumer-login-form').classList.toggle('hidden', mode !== 'login');
+  el('consumer-register-form').classList.toggle('hidden', mode !== 'register');
+  el('consumer-login-tab').classList.toggle('is-active', mode === 'login');
+  el('consumer-register-tab').classList.toggle('is-active', mode === 'register');
+  openDialog(el('consumer-auth-dialog'));
+}
+
+async function restoreConsumerSession() {
+  const token = localStorage.getItem('nayl-consumer-token');
+  if (!token) return;
+  try {
+    const payload = await api('/api/consumer/me', { token });
+    state.token = token;
+    state.consumer = payload.consumer;
+  } catch {
+    clearConsumerSession();
+  }
+}
+
+async function finishConsumerAuth(output, message) {
+  state.token = output.token;
+  state.consumer = output.consumer;
+  localStorage.setItem('nayl-consumer-token', output.token);
+  closeDialog(el('consumer-auth-dialog'));
+  renderIdentity();
+  await loadRequests();
+  showToast(message);
+  if (state.pendingQuoteResult !== undefined) {
+    const result = state.pendingQuoteResult;
+    state.pendingQuoteResult = undefined;
+    openQuoteRequest(result);
+  }
+}
+
+async function loginConsumer(event) {
+  event.preventDefault();
+  const button = el('consumer-login-submit');
+  setBusy(button, true, t('signingIn'));
+  try {
+    const output = await api('/api/consumer/login', {
+      method: 'POST',
+      body: {
+        email: el('consumer-login-email').value.trim(),
+        password: el('consumer-login-password').value
+      }
+    });
+    el('consumer-login-form').reset();
+    await finishConsumerAuth(output, t('welcomeBack'));
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    setBusy(button, false);
+  }
+}
+
+async function registerConsumer(event) {
+  event.preventDefault();
+  const button = el('consumer-register-submit');
+  setBusy(button, true, t('creatingAccount'));
+  try {
+    const output = await api('/api/consumer/register', {
+      method: 'POST',
+      body: {
+        name: el('consumer-register-name').value.trim(),
+        email: el('consumer-register-email').value.trim(),
+        password: el('consumer-register-password').value,
+        phone: el('consumer-register-phone').value.trim(),
+        locale: state.locale
+      }
+    });
+    el('consumer-register-form').reset();
+    await finishConsumerAuth(output, t('accountCreated'));
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    setBusy(button, false);
+  }
+}
+
+function logoutConsumer() {
+  clearConsumerSession();
+  state.pendingQuoteResult = undefined;
+  renderRequests();
+  showToast(t('signOut'));
 }
 
 async function submitSearch(event) {
@@ -317,6 +466,11 @@ async function submitSearch(event) {
 async function createRequest(event) {
   event.preventDefault();
   if (!state.search) return;
+  if (!state.consumer || !state.token) {
+    closeDialog(el('quote-dialog'));
+    showConsumerAuth('login');
+    return;
+  }
   const button = el('submit-request');
   setBusy(button, true, t('creating'));
   const contact = { name: el('contact-name').value.trim(), email: el('contact-email').value.trim(), phone: el('contact-phone').value.trim() };
@@ -337,7 +491,8 @@ async function createRequest(event) {
         sourceResult: state.selectedResult
       }
     });
-    localStorage.setItem('nayl-contact', JSON.stringify(contact));
+    state.consumer = { ...state.consumer, name: contact.name, phone: contact.phone };
+    renderIdentity();
     closeDialog(el('quote-dialog'));
     el('request-details').value = '';
     await loadRequests();
@@ -381,20 +536,27 @@ async function init() {
   el('search-button').innerHTML = icon('arrow', 22);
   document.querySelectorAll('[data-close-dialog]').forEach((button) => {
     button.innerHTML ||= icon('close');
-    button.addEventListener('click', () => closeDialog(el('quote-dialog')));
+    button.addEventListener('click', () => closeDialog(button.closest('dialog')));
   });
   el('search-form').addEventListener('submit', submitSearch);
   el('quote-request-form').addEventListener('submit', createRequest);
+  el('consumer-login-form').addEventListener('submit', loginConsumer);
+  el('consumer-register-form').addEventListener('submit', registerConsumer);
+  el('consumer-login-tab').addEventListener('click', () => showConsumerAuth('login'));
+  el('consumer-register-tab').addEventListener('click', () => showConsumerAuth('register'));
+  el('account-button').addEventListener('click', () => showConsumerAuth(state.consumer ? 'login' : 'login'));
+  el('consumer-logout-button').addEventListener('click', logoutConsumer);
   el('market-select').addEventListener('change', renderCities);
   el('language-button').addEventListener('click', () => {
     state.locale = state.locale === 'en' ? 'ar' : 'en';
     translateStatic();
   });
-  el('refresh-requests').addEventListener('click', () => loadRequests());
+  el('refresh-requests').addEventListener('click', () => state.consumer ? loadRequests() : showConsumerAuth('login'));
   document.addEventListener('click', (event) => {
     const target = event.target.closest('[data-action]');
     if (!target) return;
     const action = target.dataset.action;
+    if (action === 'open-consumer-auth') showConsumerAuth('login');
     if (action === 'request-result') openQuoteRequest(state.search?.results?.[Number(target.dataset.index)]);
     if (action === 'request-empty') openQuoteRequest(null);
     if (action === 'accept-quote') acceptQuote(target.dataset.request, target.dataset.quote, target);
@@ -402,7 +564,8 @@ async function init() {
   });
 
   try {
-    [state.config, state.token] = await Promise.all([api('/api/config'), ensureConsumerSession()]);
+    state.config = await api('/api/config');
+    await restoreConsumerSession();
     updateTopStatus();
     translateStatic();
     await loadRequests();
