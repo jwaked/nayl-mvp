@@ -1,0 +1,12 @@
+services:
+  nayl:
+    build: .
+    ports:
+      - "8787:8787"
+    env_file:
+      - .env
+    volumes:
+      - nayl-data:/app/.data
+
+volumes:
+  nayl-data:
